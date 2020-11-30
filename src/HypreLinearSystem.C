@@ -260,6 +260,27 @@ HypreLinearSystem::fill_hids_columns(
   }
 }
 
+
+const stk::mesh::Selector
+HypreLinearSystem::getNodeSelector(const stk::mesh::PartVector& parts)
+{
+  stk::mesh::MetaData& metaData = realm_.meta_data();
+  return metaData.locally_owned_part() & stk::mesh::selectUnion(parts) &
+    !(stk::mesh::selectUnion(realm_.get_slave_part_vector())) &
+    !(realm_.get_inactive_selector());
+}
+
+
+const stk::mesh::Selector
+HypreLinearSystem::getElementSelector(const stk::mesh::PartVector& parts)
+{
+  stk::mesh::MetaData& metaData = realm_.meta_data();
+  return metaData.locally_owned_part() &
+    stk::mesh::selectUnion(parts) &
+    !(realm_.get_inactive_selector());
+}
+
+
 void
 HypreLinearSystem::buildNodeGraph(const stk::mesh::PartVector& parts)
 {
@@ -269,11 +290,7 @@ HypreLinearSystem::buildNodeGraph(const stk::mesh::PartVector& parts)
 #endif
 
   beginLinearSystemConstruction();
-  stk::mesh::MetaData& metaData = realm_.meta_data();
-  const stk::mesh::Selector s_owned =
-    metaData.locally_owned_part() & stk::mesh::selectUnion(parts) &
-    !(stk::mesh::selectUnion(realm_.get_slave_part_vector())) &
-    !(realm_.get_inactive_selector());
+  const stk::mesh::Selector s_owned = getNodeSelector(parts);
 
   stk::mesh::BucketVector const& buckets =
     realm_.get_buckets(stk::topology::NODE_RANK, s_owned);
@@ -326,10 +343,8 @@ HypreLinearSystem::buildFaceToNodeGraph(const stk::mesh::PartVector& parts)
 
   beginLinearSystemConstruction();
 
-  stk::mesh::MetaData& metaData = realm_.meta_data();
-  const stk::mesh::Selector s_owned = metaData.locally_owned_part() &
-                                      stk::mesh::selectUnion(parts) &
-                                      !(realm_.get_inactive_selector());
+  const stk::mesh::Selector s_owned = getElementSelector(parts);
+
   stk::mesh::BucketVector const& buckets =
     realm_.get_buckets(realm_.meta_data().side_rank(), s_owned);
 
@@ -395,10 +410,9 @@ HypreLinearSystem::buildEdgeToNodeGraph(const stk::mesh::PartVector& parts)
 #endif
 
   beginLinearSystemConstruction();
-  stk::mesh::MetaData& metaData = realm_.meta_data();
-  const stk::mesh::Selector s_owned = metaData.locally_owned_part() &
-                                      stk::mesh::selectUnion(parts) &
-                                      !(realm_.get_inactive_selector());
+
+  const stk::mesh::Selector s_owned = getElementSelector(parts);
+
   stk::mesh::BucketVector const& buckets =
     realm_.get_buckets(stk::topology::EDGE_RANK, s_owned);
 
@@ -464,10 +478,9 @@ HypreLinearSystem::buildElemToNodeGraph(const stk::mesh::PartVector& parts)
 #endif
 
   beginLinearSystemConstruction();
-  stk::mesh::MetaData& metaData = realm_.meta_data();
-  const stk::mesh::Selector s_owned = metaData.locally_owned_part() &
-                                      stk::mesh::selectUnion(parts) &
-                                      !(realm_.get_inactive_selector());
+
+  const stk::mesh::Selector s_owned = getElementSelector(parts);
+
   stk::mesh::BucketVector const& buckets =
     realm_.get_buckets(stk::topology::ELEM_RANK, s_owned);
 
@@ -534,14 +547,11 @@ HypreLinearSystem::buildFaceElemToNodeGraph(const stk::mesh::PartVector& parts)
 
   beginLinearSystemConstruction();
   stk::mesh::BulkData& bulkData = realm_.bulk_data();
-  stk::mesh::MetaData& metaData = realm_.meta_data();
 
-  const stk::mesh::Selector s_owned = metaData.locally_owned_part() &
-                                      stk::mesh::selectUnion(parts) &
-                                      !(realm_.get_inactive_selector());
+  const stk::mesh::Selector s_owned = getElementSelector(parts);
 
   stk::mesh::BucketVector const& face_buckets =
-    realm_.get_buckets(metaData.side_rank(), s_owned);
+    realm_.get_buckets(realm_.meta_data().side_rank(), s_owned);
 
   if (numDof_ == 1) {
     for (size_t ib = 0; ib < face_buckets.size(); ++ib) {

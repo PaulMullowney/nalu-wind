@@ -699,11 +699,7 @@ HypreUVWLinearSystem::buildNodeGraph(const stk::mesh::PartVector& parts)
 #endif
 
   beginLinearSystemConstruction();
-  stk::mesh::MetaData& metaData = realm_.meta_data();
-  const stk::mesh::Selector s_owned =
-    metaData.locally_owned_part() & stk::mesh::selectUnion(parts) &
-    !(stk::mesh::selectUnion(realm_.get_slave_part_vector())) &
-    !(realm_.get_inactive_selector());
+  const stk::mesh::Selector s_owned = getNodeSelector(parts);
 
   stk::mesh::BucketVector const& buckets =
     realm_.get_buckets(stk::topology::NODE_RANK, s_owned);
@@ -739,10 +735,7 @@ HypreUVWLinearSystem::buildFaceToNodeGraph(const stk::mesh::PartVector& parts)
 #endif
 
   beginLinearSystemConstruction();
-  stk::mesh::MetaData& metaData = realm_.meta_data();
-  const stk::mesh::Selector s_owned = metaData.locally_owned_part() &
-                                      stk::mesh::selectUnion(parts) &
-                                      !(realm_.get_inactive_selector());
+  const stk::mesh::Selector s_owned = getElementSelector(parts);
 
   stk::mesh::BucketVector const& buckets =
     realm_.get_buckets(realm_.meta_data().side_rank(), s_owned);
@@ -786,10 +779,7 @@ HypreUVWLinearSystem::buildEdgeToNodeGraph(const stk::mesh::PartVector& parts)
 
   beginLinearSystemConstruction();
 
-  stk::mesh::MetaData& metaData = realm_.meta_data();
-  const stk::mesh::Selector s_owned = metaData.locally_owned_part() &
-                                      stk::mesh::selectUnion(parts) &
-                                      !(realm_.get_inactive_selector());
+  const stk::mesh::Selector s_owned = getElementSelector(parts);
 
   stk::mesh::BucketVector const& buckets =
     realm_.get_buckets(stk::topology::EDGE_RANK, s_owned);
@@ -832,10 +822,7 @@ HypreUVWLinearSystem::buildElemToNodeGraph(const stk::mesh::PartVector& parts)
 #endif
 
   beginLinearSystemConstruction();
-  stk::mesh::MetaData& metaData = realm_.meta_data();
-  const stk::mesh::Selector s_owned = metaData.locally_owned_part() &
-                                      stk::mesh::selectUnion(parts) &
-                                      !(realm_.get_inactive_selector());
+  const stk::mesh::Selector s_owned = getElementSelector(parts);
 
   stk::mesh::BucketVector const& buckets =
     realm_.get_buckets(stk::topology::ELEM_RANK, s_owned);
@@ -880,13 +867,10 @@ HypreUVWLinearSystem::buildFaceElemToNodeGraph(
 
   beginLinearSystemConstruction();
   stk::mesh::BulkData& bulkData = realm_.bulk_data();
-  stk::mesh::MetaData& metaData = realm_.meta_data();
-  const stk::mesh::Selector s_owned = metaData.locally_owned_part() &
-                                      stk::mesh::selectUnion(parts) &
-                                      !(realm_.get_inactive_selector());
+  const stk::mesh::Selector s_owned = getElementSelector(parts);
 
   stk::mesh::BucketVector const& face_buckets =
-    realm_.get_buckets(metaData.side_rank(), s_owned);
+    realm_.get_buckets(realm_.meta_data().side_rank(), s_owned);
 
   std::vector<HypreIntType> hids(0);
 

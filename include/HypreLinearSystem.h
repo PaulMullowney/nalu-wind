@@ -469,6 +469,12 @@ public:
   }
 
 protected:
+
+  /** get a selector
+   */
+  virtual const stk::mesh::Selector getNodeSelector(const stk::mesh::PartVector& parts);
+  virtual const stk::mesh::Selector getElementSelector(const stk::mesh::PartVector& parts);
+
   /** Prepare the instance for system construction
    *
    *  During initialization, this creates the hypre data structures via API
