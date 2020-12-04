@@ -116,7 +116,7 @@ HypreUVWLinearSystem::hypreIJVectorSetAddToValues()
         hcApplier->rhs_owned_uvm_.data() + i * num_rows_owned);
     }
 
-    if (num_rows_shared) {
+    if (num_rows_shared && !realm_.get_activate_aura()) {
       /* Add the shared part */
       HYPRE_IJVectorAddToValues(
         rhs_[i], num_rows_shared, hcApplier->row_indices_shared_uvm_.data(),

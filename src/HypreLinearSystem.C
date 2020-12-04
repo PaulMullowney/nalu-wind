@@ -9,6 +9,21 @@
 
 #include "HypreLinearSystem.h"
 
+// stk_mesh/base/fem
+#include <stk_mesh/base/BulkData.hpp>
+#include <stk_mesh/base/Field.hpp>
+#include <stk_mesh/base/FieldParallel.hpp>
+#include <stk_mesh/base/GetBuckets.hpp>
+#include <stk_mesh/base/GetEntities.hpp>
+#include <stk_mesh/base/CoordinateSystems.hpp>
+#include <stk_mesh/base/MetaData.hpp>
+#include <stk_mesh/base/Comm.hpp>
+#include <stk_mesh/base/CreateEdges.hpp>
+#include <stk_mesh/base/SkinBoundary.hpp>
+#include <stk_mesh/base/FieldBLAS.hpp>
+#include <stk_mesh/base/NgpMesh.hpp>
+#include <stk_mesh/base/GetNgpField.hpp>
+
 namespace sierra {
 namespace nalu {
 
@@ -177,6 +192,12 @@ HypreLinearSystem::beginLinearSystemConstruction()
     stk::mesh::communicate_field_data(
       *realm_.nonConformalManager_->nonConformalGhosting_, fVec);
 
+  if (realm_.get_activate_aura()) {
+    stk::mesh::BulkData& bulk = realm_.bulk_data();
+    stk::mesh::copy_owned_to_shared(bulk, fVec);
+    stk::mesh::communicate_field_data(bulk.aura_ghosting(), fVec);
+  }
+
 #ifdef HYPRE_LINEAR_SYSTEM_TIMER
   gettimeofday(&_stop, NULL);
   double msec = (double)(_stop.tv_usec - _start.tv_usec) / 1.e3 +
@@ -265,9 +286,15 @@ const stk::mesh::Selector
 HypreLinearSystem::getNodeSelector(const stk::mesh::PartVector& parts)
 {
   stk::mesh::MetaData& metaData = realm_.meta_data();
-  return metaData.locally_owned_part() & stk::mesh::selectUnion(parts) &
-    !(stk::mesh::selectUnion(realm_.get_slave_part_vector())) &
-    !(realm_.get_inactive_selector());
+  if (realm_.get_activate_aura())
+    return (metaData.locally_owned_part() | metaData.aura_part()) & 
+      stk::mesh::selectUnion(parts) &
+      !(stk::mesh::selectUnion(realm_.get_slave_part_vector())) &
+      !(realm_.get_inactive_selector());
+  else
+    return metaData.locally_owned_part() & stk::mesh::selectUnion(parts) &
+      !(stk::mesh::selectUnion(realm_.get_slave_part_vector())) &
+      !(realm_.get_inactive_selector());
 }
 
 
@@ -275,9 +302,15 @@ const stk::mesh::Selector
 HypreLinearSystem::getElementSelector(const stk::mesh::PartVector& parts)
 {
   stk::mesh::MetaData& metaData = realm_.meta_data();
-  return metaData.locally_owned_part() &
-    stk::mesh::selectUnion(parts) &
-    !(realm_.get_inactive_selector());
+  
+  if (realm_.get_activate_aura())
+    return (metaData.locally_owned_part() | metaData.aura_part()) &
+      stk::mesh::selectUnion(parts) &
+      !(realm_.get_inactive_selector());
+  else
+    return metaData.locally_owned_part() &
+      stk::mesh::selectUnion(parts) &
+      !(realm_.get_inactive_selector());
 }
 
 
@@ -1454,7 +1487,7 @@ HypreLinearSystem::hypreIJMatrixSetAddToValues()
       hcApplier->values_owned_uvm_.data());
   }
 
-  if (num_nonzeros_shared) {
+  if (num_nonzeros_shared && !realm_.get_activate_aura()) {
     /* Add the shared part */
     HYPRE_IJMatrixAddToValues(
       mat_, num_rows_shared, hcApplier->row_counts_shared_uvm_.data(),
@@ -1480,7 +1513,7 @@ HypreLinearSystem::hypreIJVectorSetAddToValues()
       hcApplier->rhs_owned_uvm_.data());
   }
 
-  if (num_rows_shared) {
+  if (num_rows_shared && !realm_.get_activate_aura()) {
     /* Add the shared part */
     HYPRE_IJVectorAddToValues(
       rhs_, num_rows_shared, hcApplier->row_indices_shared_uvm_.data(),
