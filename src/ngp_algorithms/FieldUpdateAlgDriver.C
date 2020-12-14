@@ -73,6 +73,9 @@ FieldUpdateAlgDriver::post_work()
 
   ngpField.modify_on_host();
   ngpField.sync_to_device();
+
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  stk::mesh::communicate_field_data(bulk.aura_ghosting(), {field});
 }
 
 } // namespace nalu

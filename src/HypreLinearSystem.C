@@ -1487,6 +1487,7 @@ HypreLinearSystem::hypreIJMatrixSetAddToValues()
       hcApplier->values_owned_uvm_.data());
   }
 
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
   if (num_nonzeros_shared && !realm_.get_activate_aura()) {
     /* Add the shared part */
     HYPRE_IJMatrixAddToValues(
@@ -1571,6 +1572,7 @@ HypreLinearSystem::loadComplete()
   gettimeofday(&_start, NULL);
 #endif
 
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
   /* Matrix */
   hypreIJMatrixSetAddToValues();
 

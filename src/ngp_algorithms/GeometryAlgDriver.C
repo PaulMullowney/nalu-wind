@@ -199,6 +199,9 @@ void GeometryAlgDriver::post_work()
     warea.modify_on_device();
   }
 
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  stk::mesh::communicate_field_data(realm_.bulk_data().aura_ghosting(), fields);
+
   // Compute volume statistics and print out
   compute_volume_stats(realm_.mesh_info());
 }

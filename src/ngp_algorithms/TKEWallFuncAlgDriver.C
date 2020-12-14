@@ -94,6 +94,15 @@ void TKEWallFuncAlgDriver::post_work()
   ngpBcNodalTke.modify_on_device();
   ngpBcTke.modify_on_device();
   ngpTke.modify_on_device();
+
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  const auto& bulk = realm_.bulk_data();
+  //const std::vector<NGPDoubleFieldType*> aura_fields {&ngpBcNodalTke, &ngpBcTke, &ngpTke};
+  //stk::mesh::communicate_field_data(realm_.bulk_data().aura_ghosting(), aura_fields);
+  //stk::mesh::communicate_field_data(bulk.aura_ghosting(), {&ngpBcNodalTke});
+  //stk::mesh::communicate_field_data(bulk.aura_ghosting(), {&ngpBcTke});
+  //const std::vector<NGPDoubleFieldType*> field{&ngpTke};
+  //stk::mesh::communicate_field_data(bulk.aura_ghosting(), field);
 }
 
 }  // nalu

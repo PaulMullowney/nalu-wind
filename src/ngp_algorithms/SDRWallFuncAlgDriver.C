@@ -99,6 +99,15 @@ void SDRWallFuncAlgDriver::post_work()
   bcsdr.modify_on_device();
   sdrWallBC.modify_on_device();
   sdr.modify_on_device();
+
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  const auto& bulk = realm_.bulk_data();
+  //const std::vector<NGPDoubleFieldType*> aura_fields {&wallArea, &bcsdr, &sdrWallBC, &sdr};
+  //stk::mesh::communicate_field_data(realm_.bulk_data().aura_ghosting(), aura_fields);
+  //stk::mesh::communicate_field_data(bulk.aura_ghosting(), {&walArea});
+  //stk::mesh::communicate_field_data(bulk.aura_ghosting(), {&bcsdr});
+  //stk::mesh::communicate_field_data(bulk.aura_ghosting(), {&sdrWallBC});
+  //stk::mesh::communicate_field_data(bulk.aura_ghosting(), {&sdr});
 }
 
 }  // nalu

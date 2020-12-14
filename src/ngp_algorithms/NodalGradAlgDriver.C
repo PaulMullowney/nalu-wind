@@ -81,6 +81,12 @@ void NodalGradAlgDriver<GradPhiType>::post_work()
 
   ngpGradPhi.modify_on_host();
   ngpGradPhi.sync_to_device();
+
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  stk::mesh::copy_owned_to_shared(bulk, fVec);
+  stk::mesh::communicate_field_data(bulk.aura_ghosting(), fVec);
+  ngpGradPhi.modify_on_host();
+  ngpGradPhi.sync_to_device();
 }
 
 template class NodalGradAlgDriver<VectorFieldType>;

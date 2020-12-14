@@ -139,6 +139,7 @@ HypreUVWLinearSystem::loadComplete()
   gettimeofday(&_start, NULL);
 #endif
 
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
   /* Matrix */
   hypreIJMatrixSetAddToValues();
 
