@@ -935,17 +935,17 @@ HypreLinearSystem::computeRowSizes()
   }
 
   /* Make big monolithic data structures for values and columns */
-  hcApplier->values_uvm_ = DoubleViewUVM("values_uvm", totalMatElmts);
-  hcApplier->rhs_uvm_ = DoubleView2DUVM("values_uvm", totalRhsElmts, hcApplier->nDim_);
+  hcApplier->values_ = DoubleView("values", totalMatElmts);
+  hcApplier->rhs_ = DoubleView2D("rhs_values", totalRhsElmts, hcApplier->nDim_);
 
   cols_host_ = HypreIntTypeViewHost("cols_host", totalMatElmts);
   for (HypreIntType i=0; i<hcApplier->num_nonzeros_owned_; ++i)  cols_host_(i)                                = cols_owned_host_(i);
   for (HypreIntType i=0; i<hcApplier->num_nonzeros_shared_; ++i) cols_host_(i+hcApplier->num_nonzeros_owned_) = cols_shared_host_(i);
 
-  hcApplier->cols_uvm_ = HypreIntTypeViewUVM("cols_uvm", totalMatElmts);
-  Kokkos::deep_copy(hcApplier->cols_uvm_, cols_host_);
+  hcApplier->cols_ = HypreIntTypeView("cols", totalMatElmts);
+  Kokkos::deep_copy(hcApplier->cols_, cols_host_);
 
-  /* Creat the rows for the mat (rows_host_ and rows_uvm_) and rhs (rhs_rows_host_ and rhs_rows_uvm_)*/
+  /* Creat the rows for the mat (rows_host_ and rows_) and rhs (rhs_rows_host_ and rhs_rows_)*/
   rows_host_ = HypreIntTypeViewHost("rows_host", totalMatElmts);
   rhs_rows_host_ = HypreIntTypeView2DHost("rhs_rows_host", totalRhsElmts, hcApplier->nDim_);
   HypreIntType k=0;
@@ -968,11 +968,11 @@ HypreLinearSystem::computeRowSizes()
       ++k;
     }
   }
-  rows_uvm_ = HypreIntTypeViewUVM("rows_uvm", totalMatElmts);
-  Kokkos::deep_copy(rows_uvm_, rows_host_);
+  rows_ = HypreIntTypeView("rows", totalMatElmts);
+  Kokkos::deep_copy(rows_, rows_host_);
 
-  rhs_rows_uvm_ = HypreIntTypeView2DUVM("rhs_rows_uvm", totalRhsElmts, hcApplier->nDim_);
-  Kokkos::deep_copy(rhs_rows_uvm_, rhs_rows_host_);
+  rhs_rows_ = HypreIntTypeView2D("rhs_rows", totalRhsElmts, hcApplier->nDim_);
+  Kokkos::deep_copy(rhs_rows_, rhs_rows_host_);
 }
 
 
@@ -1298,17 +1298,17 @@ HypreLinearSystem::buildCoeffApplierDeviceDataStructures()
     hcApplier->num_nonzeros_owned_ + hcApplier->num_nonzeros_shared_;
 
   // owned by this class
-  size_t totalMemUVM =
+  size_t totalMemDevice =
     sizeof(double) * (num_nonzeros + hcApplier->nDim_ * num_rows);
 
   // uvm pass in to this class:
-  totalMemUVM += (hcApplier->cols_uvm_.extent(0)) * sizeof(HypreIntType);
+  totalMemDevice += (hcApplier->cols_.extent(0)) * sizeof(HypreIntType);
 
   // passed in as an arugment to this class
-  size_t totalMemDevice = (hcApplier->mat_row_start_owned_.extent(0) +
-                           hcApplier->mat_row_start_shared_.extent(0) +
-                           hcApplier->rhs_row_start_shared_.extent(0)) *
-                          sizeof(unsigned);
+  totalMemDevice += (hcApplier->mat_row_start_owned_.extent(0) +
+		     hcApplier->mat_row_start_shared_.extent(0) +
+		     hcApplier->rhs_row_start_shared_.extent(0)) *
+    sizeof(unsigned);
   totalMemDevice +=
     hcApplier->periodic_bc_rows_owned_.extent(0) * sizeof(HypreIntType);
   totalMemDevice +=
@@ -1330,9 +1330,8 @@ HypreLinearSystem::buildCoeffApplierDeviceDataStructures()
   // stk::get_gpu_memory_info(used, free);
   if (rank_ == 0) {
     printf(
-      "rank_=%d : %s %s %d : totalMemDevice=%1.5g, totalMemUVM=%1.5g\n", rank_,
-      __FILE__, __FUNCTION__, __LINE__, totalMemDevice / 1.e9,
-      totalMemUVM / 1.e9);
+      "rank_=%d : %s %s %d : totalMemDevice=%1.5g\n", rank_,
+      __FILE__, __FUNCTION__, __LINE__, totalMemDevice / 1.e9);
   }
 #endif
 
@@ -1420,22 +1419,22 @@ HypreLinearSystem::resetCoeffApplierData()
     hcApplier->overset_mat_counter_ = 0;
     hcApplier->overset_rhs_counter_ = 0;
 
-    Kokkos::deep_copy(hcApplier->cols_uvm_, cols_host_);
-    Kokkos::deep_copy(rows_uvm_, rows_host_);
-    Kokkos::deep_copy(rhs_rows_uvm_, rhs_rows_host_);
-    Kokkos::deep_copy(hcApplier->values_uvm_, 0);
-    Kokkos::deep_copy(hcApplier->rhs_uvm_, 0);
+    Kokkos::deep_copy(hcApplier->cols_, cols_host_);
+    Kokkos::deep_copy(rows_, rows_host_);
+    Kokkos::deep_copy(rhs_rows_, rhs_rows_host_);
+    Kokkos::deep_copy(hcApplier->values_, 0);
+    Kokkos::deep_copy(hcApplier->rhs_, 0);
 
     // set the random access memory textures
     hcApplier->mat_row_start_owned_ra_ = hcApplier->mat_row_start_owned_;
     hcApplier->mat_row_start_shared_ra_ = hcApplier->mat_row_start_shared_;
-    hcApplier->cols_uvm_ra_ = hcApplier->cols_uvm_;
+    hcApplier->cols_ra_ = hcApplier->cols_;
 
     auto N = hcApplier->periodic_bc_rows_owned_.extent(0);
     auto periodic_bc_rows = hcApplier->periodic_bc_rows_owned_;
     auto mat_row_start_owned = hcApplier->mat_row_start_owned_ra_;
-    auto vals = hcApplier->values_uvm_;
-    auto rhs_vals = hcApplier->rhs_uvm_;
+    auto vals = hcApplier->values_;
+    auto rhs_vals = hcApplier->rhs_;
     auto nDim = hcApplier->nDim_;
 
     auto iLower = iLower_;
@@ -1474,8 +1473,8 @@ HypreLinearSystem::finishCoupledOversetAssembly()
     auto ovals = hcApplier->d_overset_vals_;
     auto iLower = iLower_;
     auto mat_row_start = hcApplier->mat_row_start_owned_ra_;
-    auto cols_uvm = hcApplier->cols_uvm_ra_;
-    auto vals = hcApplier->values_uvm_;
+    auto cols = hcApplier->cols_ra_;
+    auto vals = hcApplier->values_;
     /* write to the matrix */
     Kokkos::parallel_for(
       "fillOversetMatrixRows", N, KOKKOS_LAMBDA(const unsigned& i) {
@@ -1486,7 +1485,7 @@ HypreLinearSystem::finishCoupledOversetAssembly()
         unsigned upper = mat_row_start(row - iLower + 1) - 1;
         unsigned matIndex = lower;
         for (matIndex = lower; matIndex <= upper; ++matIndex) {
-          if (cols_uvm(matIndex) == col)
+          if (cols(matIndex) == col)
             break;
         }
         vals(matIndex) = ovals(i);
@@ -1502,7 +1501,7 @@ HypreLinearSystem::finishCoupledOversetAssembly()
     N = hcApplier->d_overset_rhs_vals_.extent(0);
     auto orow_indices = hcApplier->d_overset_row_indices_;
     auto orvals = hcApplier->d_overset_rhs_vals_;
-    auto rhs_vals = hcApplier->rhs_uvm_;
+    auto rhs_vals = hcApplier->rhs_;
     /* write to the rhs */
     Kokkos::parallel_for(
       "fillOversetRhsVector", N, KOKKOS_LAMBDA(const unsigned& i) {
@@ -1534,14 +1533,14 @@ HypreLinearSystem::hypreIJMatrixSetAddToValues()
 
   if (num_nonzeros_owned) {
     /* Set the owned part */
-    HYPRE_IJMatrixSetValues2(mat_, num_nonzeros_owned, NULL, rows_uvm_.data(), NULL,
- 			     hcApplier->cols_uvm_.data(), hcApplier->values_uvm_.data());
+    HYPRE_IJMatrixSetValues2(mat_, num_nonzeros_owned, NULL, rows_.data(), NULL,
+ 			     hcApplier->cols_.data(), hcApplier->values_.data());
   }
 
   if (num_nonzeros_shared) {
     /* Add the shared part */
-    HYPRE_IJMatrixAddToValues2(mat_, num_nonzeros_shared, NULL, rows_uvm_.data()+num_nonzeros_owned, NULL,
-			       hcApplier->cols_uvm_.data()+num_nonzeros_owned, hcApplier->values_uvm_.data()+num_nonzeros_owned);
+    HYPRE_IJMatrixAddToValues2(mat_, num_nonzeros_shared, NULL, rows_.data()+num_nonzeros_owned, NULL,
+			       hcApplier->cols_.data()+num_nonzeros_owned, hcApplier->values_.data()+num_nonzeros_owned);
   }
 } 
 
@@ -1569,15 +1568,15 @@ HypreLinearSystem::hypreIJVectorSetAddToValues()
   if (num_rows_owned) {
     /* Set the owned part */
     HYPRE_IJVectorSetValues(
-      rhs_, num_rows_owned, rhs_rows_uvm_.data(),
-      hcApplier->rhs_uvm_.data());
+      rhs_, num_rows_owned, rhs_rows_.data(),
+      hcApplier->rhs_.data());
   }
 
   if (num_rows_shared) {
     /* Add the shared part */
     HYPRE_IJVectorAddToValues(
-      rhs_, num_rows_shared, rhs_rows_uvm_.data()+num_rows_owned,
-      hcApplier->rhs_uvm_.data()+num_rows_owned);
+      rhs_, num_rows_shared, rhs_rows_.data()+num_rows_owned,
+      hcApplier->rhs_.data()+num_rows_owned);
   }
 }
 
@@ -1921,14 +1920,14 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sum_into(
         for (unsigned k = 0; k < numRows; ++k) {
           /* binary search subrange rather than a map.find */
           HypreIntType col = localIds[k];
-	  while(cols_uvm_ra_(matIndex)<col) matIndex++;
+	  while(cols_ra_(matIndex)<col) matIndex++;
 	  int kk = sortPermutation[k];
 
           /* write the matrix element */
-          Kokkos::atomic_add(&values_uvm_(matIndex), cur_lhs[kk]);
+          Kokkos::atomic_add(&values_(matIndex), cur_lhs[kk]);
         }
         /* fill the right hand side values */
-        Kokkos::atomic_add(&rhs_uvm_(index, 0), rhs[ii]);
+        Kokkos::atomic_add(&rhs_(index, 0), rhs[ii]);
       }
 
     } else {
@@ -1951,14 +1950,14 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sum_into(
         for (unsigned k = 0; k < numRows; ++k) {
           /* binary search subrange rather than a map.find */
           HypreIntType col = localIds[k];
-          while(cols_uvm_ra_(matIndex)<col) matIndex++;
+          while(cols_ra_(matIndex)<col) matIndex++;
 	  int kk = sortPermutation[k];
           /* write the matrix element */
-          Kokkos::atomic_add(&values_uvm_(matIndex), cur_lhs[kk]);
+          Kokkos::atomic_add(&values_(matIndex), cur_lhs[kk]);
         }
         /* fill the right hand side values */
         unsigned rhsIndex = rhs_row_start_shared_(index) + (iUpper-iLower+1);
-        Kokkos::atomic_add(&rhs_uvm_(rhsIndex, 0), rhs[ii]);
+        Kokkos::atomic_add(&rhs_(rhsIndex, 0), rhs[ii]);
       }
     }
   }
@@ -2008,14 +2007,14 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sum_into_1DoF(
       for (unsigned k = 0; k < numEntities; ++k) {
         /* binary search subrange rather than a map.find */
         HypreIntType col = localIds[k];
-	while(cols_uvm_ra_(matIndex)<col) matIndex++;
+	while(cols_ra_(matIndex)<col) matIndex++;
         /* write the matrix element */
 	int kk = sortPermutation[k];
-        Kokkos::atomic_add(&values_uvm_(matIndex), cur_lhs[kk]);
+        Kokkos::atomic_add(&values_(matIndex), cur_lhs[kk]);
 	matIndex++;
       }
       /* fill the right hand side values */
-      Kokkos::atomic_add(&rhs_uvm_(index, 0), rhs[ii]);
+      Kokkos::atomic_add(&rhs_(index, 0), rhs[ii]);
 
     } else {
 
@@ -2027,15 +2026,15 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sum_into_1DoF(
       for (unsigned k = 0; k < numEntities; ++k) {
         /* binary search subrange rather than a map.find */
         HypreIntType col = localIds[k];
-	while(cols_uvm_ra_(matIndex)<col) matIndex++;
+	while(cols_ra_(matIndex)<col) matIndex++;
         /* write the matrix element */
 	int kk = sortPermutation[k];
-        Kokkos::atomic_add(&values_uvm_(matIndex), cur_lhs[kk]);
+        Kokkos::atomic_add(&values_(matIndex), cur_lhs[kk]);
 	matIndex++;
       }
       /* fill the right hand side values */
       unsigned rhsIndex = rhs_row_start_shared_(index) + (iUpper-iLower+1);
-      Kokkos::atomic_add(&rhs_uvm_(rhsIndex, 0), rhs[ii]);
+      Kokkos::atomic_add(&rhs_(rhsIndex, 0), rhs[ii]);
     }
   }
 }
@@ -2087,10 +2086,10 @@ HypreLinearSystem::HypreLinSysCoeffApplier::reset_rows(
         unsigned lower = mat_row_start_owned_ra_(index);
         unsigned upper = mat_row_start_owned_ra_(index + 1);
         for (unsigned k = lower; k < upper; ++k) {
-          values_uvm_(k) = 0.0;
-	  if (cols_uvm_ra_(k)==hid) values_uvm_(k) = diag_value;
+          values_(k) = 0.0;
+	  if (cols_ra_(k)==hid) values_(k) = diag_value;
 	}
-        rhs_uvm_(hid - iLower, 0) = rhs_residual;
+        rhs_(hid - iLower, 0) = rhs_residual;
 
       } else {
         if (!map_shared_.exists(hid))
@@ -2099,11 +2098,11 @@ HypreLinearSystem::HypreLinSysCoeffApplier::reset_rows(
         unsigned lower = mat_row_start_shared_ra_(index) + memShift;
         unsigned upper = mat_row_start_shared_ra_(index + 1) + memShift;
         for (unsigned k = lower; k < upper; ++k) {
-          values_uvm_(k) = 0.0;
-	  if (cols_uvm_ra_(k)==hid) values_uvm_(k) = diag_value;
+          values_(k) = 0.0;
+	  if (cols_ra_(k)==hid) values_(k) = diag_value;
 	}
         unsigned rhsIndex = rhs_row_start_shared_(index) + (iUpper-iLower+1);
-        rhs_uvm_(rhsIndex, 0) = rhs_residual;
+        rhs_(rhsIndex, 0) = rhs_residual;
       }
     }
   }
@@ -2230,8 +2229,8 @@ HypreLinearSystem::applyDirichletBCs(
   const auto& ngpMesh = hcApplier->ngpMesh_;
   const auto hypreGID = hcApplier->ngpHypreGlobalId_;
   auto mat_row_start_owned = hcApplier->mat_row_start_owned_ra_;
-  auto vals = hcApplier->values_uvm_;
-  auto rhs_vals = hcApplier->rhs_uvm_;
+  auto vals = hcApplier->values_;
+  auto rhs_vals = hcApplier->rhs_;
 
   auto numDof = numDof_;
   auto iLower = iLower_;

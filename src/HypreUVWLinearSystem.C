@@ -157,16 +157,16 @@ HypreUVWLinearSystem::hypreIJVectorSetAddToValues()
     if (num_rows_owned) {
       /* Set the owned part */
       HYPRE_IJVectorSetValues(rhs_[i], num_rows_owned, 
-        rhs_rows_uvm_.data() + i * rhs_rows_uvm_.extent(0),
-        hcApplier->rhs_uvm_.data() + i * rhs_rows_uvm_.extent(0));
+        rhs_rows_.data() + i * rhs_rows_.extent(0),
+        hcApplier->rhs_.data() + i * rhs_rows_.extent(0));
     }
 
     if (num_rows_shared) {
       /* Add the shared part */
       HYPRE_IJVectorAddToValues(
         rhs_[i], num_rows_shared, 
-	rhs_rows_uvm_.data() + i * rhs_rows_uvm_.extent(0) + num_rows_owned,
-        hcApplier->rhs_uvm_.data() + i * rhs_rows_uvm_.extent(0) + num_rows_owned);
+	rhs_rows_.data() + i * rhs_rows_.extent(0) + num_rows_owned,
+        hcApplier->rhs_.data() + i * rhs_rows_.extent(0) + num_rows_owned);
     }
   }
 }
@@ -317,8 +317,8 @@ HypreUVWLinearSystem::applyDirichletBCs(
   const auto& ngpMesh = realm_.ngp_mesh();
   const auto hypreGID = hcApplier->ngpHypreGlobalId_;
   auto mat_row_start_owned = hcApplier->mat_row_start_owned_;
-  auto vals = hcApplier->values_uvm_;
-  auto rhs_vals = hcApplier->rhs_uvm_;
+  auto vals = hcApplier->values_;
+  auto rhs_vals = hcApplier->rhs_;
 
   auto nDim = nDim_;
   auto iLower = iLower_;
@@ -603,14 +603,14 @@ HypreUVWLinearSystem::HypreUVWLinSysCoeffApplier::sum_into(
       for (unsigned k = 0; k < numEntities; ++k) {
         /* search sorted list from where we left off */
         HypreIntType col = localIds[k];
-	while(cols_uvm_ra_(matIndex)<col) matIndex++;
+	while(cols_ra_(matIndex)<col) matIndex++;
         /* write the matrix element */
-        Kokkos::atomic_add(&values_uvm_(matIndex), lhs(ix, sortPermutation[k]));
+        Kokkos::atomic_add(&values_(matIndex), lhs(ix, sortPermutation[k]));
 	matIndex++;
       }
       for (unsigned d = 0; d < nDim; ++d) {
         int ir = ix + d;
-        Kokkos::atomic_add(&rhs_uvm_(index, d), rhs[ir]);
+        Kokkos::atomic_add(&rhs_(index, d), rhs[ir]);
       }
     } else {
       if (!map_shared_.exists(hid))
@@ -620,16 +620,16 @@ HypreUVWLinearSystem::HypreUVWLinSysCoeffApplier::sum_into(
       for (unsigned k = 0; k < numEntities; ++k) {
         /* search sorted list from where we left off */
         HypreIntType col = localIds[k];
-	while(cols_uvm_ra_(matIndex)<col) matIndex++;
+	while(cols_ra_(matIndex)<col) matIndex++;
         /* write the matrix element */
-        Kokkos::atomic_add(&values_uvm_(matIndex), lhs(ix, sortPermutation[k]));
+        Kokkos::atomic_add(&values_(matIndex), lhs(ix, sortPermutation[k]));
 	matIndex++;
       }
 
       unsigned rhsIndex = rhs_row_start_shared_(index) + (iUpper-iLower+1);
       for (unsigned d = 0; d < nDim; ++d) {
         int ir = ix + d;
-        Kokkos::atomic_add(&rhs_uvm_(rhsIndex, d), rhs[ir]);
+        Kokkos::atomic_add(&rhs_(rhsIndex, d), rhs[ir]);
       }
     }
   }
@@ -675,11 +675,11 @@ HypreUVWLinearSystem::HypreUVWLinSysCoeffApplier::reset_rows(
       unsigned lower = mat_row_start_owned_ra_(index);
       unsigned upper = mat_row_start_owned_ra_(index + 1);
       for (unsigned k = lower; k < upper; ++k) {
-        values_uvm_(k) = 0.0;
-	if (cols_uvm_ra_(k)==hid) values_uvm_(k) = diag_value;
+        values_(k) = 0.0;
+	if (cols_ra_(k)==hid) values_(k) = diag_value;
       }
       for (unsigned d = 0; d < nDim; ++d)
-        rhs_uvm_(index, d) = rhs_residual;
+        rhs_(index, d) = rhs_residual;
 
     } else {
       if (!map_shared_.exists(hid))
@@ -689,12 +689,12 @@ HypreUVWLinearSystem::HypreUVWLinSysCoeffApplier::reset_rows(
       unsigned lower = mat_row_start_shared_ra_(index) + memShift;
       unsigned upper = mat_row_start_shared_ra_(index + 1) + memShift;
       for (unsigned k = lower; k < upper; ++k) {
-        values_uvm_(k) = 0.0;
-	if (cols_uvm_ra_(k)==hid) values_uvm_(k) = diag_value;
+        values_(k) = 0.0;
+	if (cols_ra_(k)==hid) values_(k) = diag_value;
       }
       unsigned rhsIndex = rhs_row_start_shared_(index) + (iUpper-iLower+1);
       for (unsigned d = 0; d < nDim; ++d)
-        rhs_uvm_(rhsIndex, d) = rhs_residual;
+        rhs_(rhsIndex, d) = rhs_residual;
     }
   }
 }
