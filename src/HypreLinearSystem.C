@@ -1524,7 +1524,7 @@ HypreLinearSystem::hypreIJMatrixSetAddToValues()
   HypreDirectSolver* solver = reinterpret_cast<HypreDirectSolver*>(linearSolver_);
   HypreLinearSolverConfig* config = reinterpret_cast<HypreLinearSolverConfig*>(solver->getConfig());
   if (config->simpleHypreMatrixAssemble()) {
-#if 0
+#if 1
     /* set the key hypre parameters */
     HYPRE_IJMatrixSetMaxOnProcElmts(mat_, hcApplier->num_nonzeros_owned_);
     HYPRE_IJMatrixSetOffProcSendElmts(mat_, offProcNNZToSend_);
@@ -1558,7 +1558,7 @@ HypreLinearSystem::hypreIJVectorSetAddToValues()
   HypreDirectSolver* solver = reinterpret_cast<HypreDirectSolver*>(linearSolver_);
   HypreLinearSolverConfig* config = reinterpret_cast<HypreLinearSolverConfig*>(solver->getConfig());
   if (config->simpleHypreMatrixAssemble()) {
-#if 0
+#if 1
     /* set the key hypre parameters */
     HYPRE_IJVectorSetMaxOnProcElmts(rhs_, num_rows_owned);
     HYPRE_IJVectorSetOffProcSendElmts(rhs_, offProcRhsToSend_);
@@ -1603,7 +1603,21 @@ HypreLinearSystem::dumpMatrixStats()
 
   /* compute nnz for this rank */
   HypreIntType nnz=0;
-  for (HypreIntType i=0; i<numRows_; ++i) nnz += cols[i];
+  for (HypreIntType i=0; i<numRows_; ++i) {
+    nnz += cols[i];
+  }
+
+  /* off diagonal statistics */
+  hypre_ParCSRMatrix *par_matrix = (hypre_ParCSRMatrix *) hypre_IJMatrixObject(mat_);
+  hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(par_matrix);
+
+  HypreIntType nrowsOffd = 0;
+  HypreIntType * offd_i = offd->i;
+  for (HypreIntType i=0; i<offd->num_rows; ++i) {
+    if (offd_i[i+1]-offd_i[i]>0) nrowsOffd++;
+  }
+  HypreIntType nnzOffd = offd->num_nonzeros;
+
 
   /* NNZ from Hypre row counts .. after assembly */
   std::vector<HypreIntType> tmp(nprocs);
@@ -1634,6 +1648,21 @@ HypreLinearSystem::dumpMatrixStats()
   std::fill(nnz_recv.begin(), nnz_recv.end(), 0);
   MPI_Reduce(tmp.data(), nnz_recv.data(), nprocs, HYPRE_MPI_INT, MPI_SUM, 0, realm_.bulk_data().parallel());
 
+
+  /* NNZ Offd ... after assembly */
+  std::fill(tmp.begin(), tmp.end(), 0);
+  tmp[iproc] = nnzOffd;
+  std::vector<HypreIntType> nnz_offd(nprocs);
+  std::fill(nnz_offd.begin(), nnz_offd.end(), 0);
+  MPI_Reduce(tmp.data(), nnz_offd.data(), nprocs, HYPRE_MPI_INT, MPI_SUM, 0, realm_.bulk_data().parallel());
+
+  /* nRows Offd ... after assembly */
+  std::fill(tmp.begin(), tmp.end(), 0);
+  tmp[iproc] = nrowsOffd;
+  std::vector<HypreIntType> nrows_offd(nprocs);
+  std::fill(nrows_offd.begin(), nrows_offd.end(), 0);
+  MPI_Reduce(tmp.data(), nrows_offd.data(), nprocs, HYPRE_MPI_INT, MPI_SUM, 0, realm_.bulk_data().parallel());
+
   /* num rows */
   std::fill(tmp.begin(), tmp.end(), 0);
   tmp[iproc] = totalRhsElmts;
@@ -1660,6 +1689,8 @@ HypreLinearSystem::dumpMatrixStats()
 	   << ",nnz_owned"
 	   << ",nnz_send"
 	   << ",nnz_recv"
+	   << ",num_rows_offd"
+	   << ",nnz_offd"
 	   << std::endl;
     
     for (int i=0; i<nprocs; ++i) {
@@ -1671,6 +1702,8 @@ HypreLinearSystem::dumpMatrixStats()
 	     << "," << nnz_owned[i]
 	     << "," << nnz_send[i]
 	     << "," << nnz_recv[i]
+	     << "," << nrows_offd[i]
+	     << "," << nnz_offd[i]
 	     << std::endl;
     }
     myfile.close();
