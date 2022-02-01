@@ -20,6 +20,7 @@
 #include "HYPRE_parcsr_mv.h"
 #include "krylov.h"
 #include "HYPRE.h"
+#include "_hypre_parcsr_mv.h"
 
 namespace sierra {
 namespace nalu {

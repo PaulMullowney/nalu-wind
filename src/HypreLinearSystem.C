@@ -31,15 +31,24 @@ HypreLinearSystem::HypreLinearSystem(
   localMatSharedRowCounts_.clear();
   globalRhsSharedRowCounts_.clear();
   localRhsSharedRowCounts_.clear();
+
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+  sprintf(oname_,"debug_out_%d.txt",rank_);
+  output_ = fopen(oname_, "wt");
+  fprintf(output_, "rank_=%d EqnName=%s : %s %s %d\n",
+          rank_, name_.c_str(), __FILE__, __FUNCTION__, __LINE__);
+  fclose(output_);
+#endif
+
 }
 
 HypreLinearSystem::~HypreLinearSystem()
 {
-  if (systemInitialized_) {
+  if (hypreMatrixVectorCreated_) {
     HYPRE_IJMatrixDestroy(mat_);
     HYPRE_IJVectorDestroy(rhs_);
     HYPRE_IJVectorDestroy(sln_);
-    systemInitialized_ = false;
+    hypreMatrixVectorCreated_ = false;
   }
 
 #ifdef HYPRE_LINEAR_SYSTEM_TIMER
@@ -845,9 +854,6 @@ HypreLinearSystem::finalizeLinearSystem()
   /* fill the various device data structures need in device coeff applier */
   buildCoeffApplierDeviceDataStructures();
 
-  /* Call finalize solver here */
-  finalizeSolver();
-
   /* compute the exact row sizes by reducing row counts at row indices across all ranks */
   computeRowSizes();
 
@@ -855,18 +861,14 @@ HypreLinearSystem::finalizeLinearSystem()
   size_t used2 = 0, free2 = 0;
   stk::get_gpu_memory_info(used2, free2);
   size_t total = used2 + free2;
-  if (rank_ == 0) {
-    printf(
-      "rank_=%d EqnName=%s : %s %s %d : usedMem before=%1.5g, usedMem "
-      "after=%1.5g, total=%1.5g\n",
-      rank_, name_.c_str(), __FILE__, __FUNCTION__, __LINE__, used1 / 1.e9,
-      used2 / 1.e9, total / 1.e9);
-  }
+  output_ = fopen(oname_, "at");
+  fprintf(output_,
+          "rank_=%d EqnName=%s : %s %s %d : usedMem before=%1.5g, usedMem "
+          "after=%1.5g, total=%1.5g\n",
+          rank_, name_.c_str(), __FILE__, __FUNCTION__, __LINE__, used1 / 1.e9,
+          used2 / 1.e9, total / 1.e9);
+  fclose(output_);
 #endif
-
-  // At this stage the LHS and RHS data structures are ready for
-  // sumInto/assembly.
-  systemInitialized_ = true;
 
 #ifdef HYPRE_LINEAR_SYSTEM_TIMER
   gettimeofday(&_stop, NULL);
@@ -901,8 +903,8 @@ HypreLinearSystem::computeRowSizes()
       HypreIntType lower = (HypreIntType) realm_.hypreOffsets_[j]*numDof_;
       HypreIntType upper = (HypreIntType) realm_.hypreOffsets_[j+1]*numDof_;
       if (shared_row>=lower && shared_row<upper) {
-	localMatSharedRowCounts_[j] += shared_count;
-	localRhsSharedRowCounts_[j] += 1;
+          localMatSharedRowCounts_[j] += shared_count;
+          localRhsSharedRowCounts_[j] += 1;
       }
     }
   }
@@ -910,7 +912,7 @@ HypreLinearSystem::computeRowSizes()
   /* reduce the shared NNZ per row across all ranks */
   MPI_Allreduce(localMatSharedRowCounts_.data(), globalMatSharedRowCounts_.data(), nprocs, HYPRE_MPI_INT, MPI_SUM, comm);
   MPI_Allreduce(localRhsSharedRowCounts_.data(), globalRhsSharedRowCounts_.data(), nprocs, HYPRE_MPI_INT, MPI_SUM, comm);
-  
+
   /* compute the receive NNZ per row from all other ranks */
   offProcNNZToRecv_ = globalMatSharedRowCounts_[iproc];
   offProcRhsToRecv_ = globalRhsSharedRowCounts_[iproc];
@@ -935,17 +937,17 @@ HypreLinearSystem::computeRowSizes()
   }
 
   /* Make big monolithic data structures for values and columns */
-  hcApplier->values_uvm_ = DoubleViewUVM("values_uvm", totalMatElmts);
-  hcApplier->rhs_uvm_ = DoubleView2DUVM("values_uvm", totalRhsElmts, hcApplier->nDim_);
+  hcApplier->values_dev_ = DoubleView("values_dev", totalMatElmts);
+  hcApplier->rhs_dev_ = DoubleView2D("values_dev", totalRhsElmts, hcApplier->nDim_);
 
   cols_host_ = HypreIntTypeViewHost("cols_host", totalMatElmts);
   for (HypreIntType i=0; i<hcApplier->num_nonzeros_owned_; ++i)  cols_host_(i)                                = cols_owned_host_(i);
   for (HypreIntType i=0; i<hcApplier->num_nonzeros_shared_; ++i) cols_host_(i+hcApplier->num_nonzeros_owned_) = cols_shared_host_(i);
 
-  hcApplier->cols_uvm_ = HypreIntTypeViewUVM("cols_uvm", totalMatElmts);
-  Kokkos::deep_copy(hcApplier->cols_uvm_, cols_host_);
+  hcApplier->cols_dev_ = HypreIntTypeView("cols_dev", totalMatElmts);
+  Kokkos::deep_copy(hcApplier->cols_dev_, cols_host_);
 
-  /* Creat the rows for the mat (rows_host_ and rows_uvm_) and rhs (rhs_rows_host_ and rhs_rows_uvm_)*/
+  /* Creat the rows for the mat (rows_host_ and rows_dev_) and rhs (rhs_rows_host_ and rhs_rows_dev_)*/
   rows_host_ = HypreIntTypeViewHost("rows_host", totalMatElmts);
   rhs_rows_host_ = HypreIntTypeView2DHost("rhs_rows_host", totalRhsElmts, hcApplier->nDim_);
   HypreIntType k=0;
@@ -968,46 +970,13 @@ HypreLinearSystem::computeRowSizes()
       ++k;
     }
   }
-  rows_uvm_ = HypreIntTypeViewUVM("rows_uvm", totalMatElmts);
-  Kokkos::deep_copy(rows_uvm_, rows_host_);
+  rows_dev_ = HypreIntTypeView("rows_dev", totalMatElmts);
+  Kokkos::deep_copy(rows_dev_, rows_host_);
 
-  rhs_rows_uvm_ = HypreIntTypeView2DUVM("rhs_rows_uvm", totalRhsElmts, hcApplier->nDim_);
-  Kokkos::deep_copy(rhs_rows_uvm_, rhs_rows_host_);
+  rhs_rows_dev_ = HypreIntTypeView2D("rhs_rows_dev", totalRhsElmts, hcApplier->nDim_);
+  Kokkos::deep_copy(rhs_rows_dev_, rhs_rows_host_);
 }
 
-
-void
-HypreLinearSystem::finalizeSolver()
-{
-  MPI_Comm comm = realm_.bulk_data().parallel();
-
-  // Now perform HYPRE assembly so that the data structures are ready to be used
-  // by the solvers/preconditioners.
-  HypreDirectSolver* solver =
-    reinterpret_cast<HypreDirectSolver*>(linearSolver_);
-
-  if (systemInitialized_) {
-    HYPRE_IJMatrixDestroy(mat_);
-    HYPRE_IJVectorDestroy(rhs_);
-    HYPRE_IJVectorDestroy(sln_);
-    systemInitialized_ = false;
-  }
-
-  HYPRE_IJMatrixCreate(comm, iLower_, iUpper_, jLower_, jUpper_, &mat_);
-  HYPRE_IJMatrixSetObjectType(mat_, HYPRE_PARCSR);
-  HYPRE_IJMatrixInitialize(mat_);
-  HYPRE_IJMatrixGetObject(mat_, (void**)&(solver->parMat_));
-
-  HYPRE_IJVectorCreate(comm, iLower_, iUpper_, &rhs_);
-  HYPRE_IJVectorSetObjectType(rhs_, HYPRE_PARCSR);
-  HYPRE_IJVectorInitialize(rhs_);
-  HYPRE_IJVectorGetObject(rhs_, (void**)&(solver->parRhs_));
-
-  HYPRE_IJVectorCreate(comm, iLower_, iUpper_, &sln_);
-  HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
-  HYPRE_IJVectorInitialize(sln_);
-  HYPRE_IJVectorGetObject(sln_, (void**)&(solver->parSln_));
-}
 
 /**************************************************************/
 /* Fill/Allocate Matrix/Rhs element data structures ... owned */
@@ -1086,7 +1055,7 @@ HypreLinearSystem::buildCoeffApplierDeviceOwnedDataStructures()
     "cols_owned_host", hcApplier->num_nonzeros_owned_);
   for (auto i = 0; i < hcApplier->num_nonzeros_owned_; ++i)
     cols_owned_host_(i) = matElemColsOwned[i];
-  
+
   /***********************************/
   /* Other data structures ... owned */
   /***********************************/
@@ -1297,18 +1266,13 @@ HypreLinearSystem::buildCoeffApplierDeviceDataStructures()
   auto num_nonzeros =
     hcApplier->num_nonzeros_owned_ + hcApplier->num_nonzeros_shared_;
 
-  // owned by this class
-  size_t totalMemUVM =
-    sizeof(double) * (num_nonzeros + hcApplier->nDim_ * num_rows);
-
-  // uvm pass in to this class:
-  totalMemUVM += (hcApplier->cols_uvm_.extent(0)) * sizeof(HypreIntType);
-
   // passed in as an arugment to this class
   size_t totalMemDevice = (hcApplier->mat_row_start_owned_.extent(0) +
                            hcApplier->mat_row_start_shared_.extent(0) +
                            hcApplier->rhs_row_start_shared_.extent(0)) *
-                          sizeof(unsigned);
+                          sizeof(unsigned) +
+      sizeof(double) * (num_nonzeros + hcApplier->nDim_ * num_rows) + (hcApplier->cols_dev_.extent(0)) * sizeof(HypreIntType);
+
   totalMemDevice +=
     hcApplier->periodic_bc_rows_owned_.extent(0) * sizeof(HypreIntType);
   totalMemDevice +=
@@ -1328,12 +1292,11 @@ HypreLinearSystem::buildCoeffApplierDeviceDataStructures()
 
   // size_t used = 0, free = 0;
   // stk::get_gpu_memory_info(used, free);
-  if (rank_ == 0) {
-    printf(
-      "rank_=%d : %s %s %d : totalMemDevice=%1.5g, totalMemUVM=%1.5g\n", rank_,
-      __FILE__, __FUNCTION__, __LINE__, totalMemDevice / 1.e9,
-      totalMemUVM / 1.e9);
-  }
+  output_ = fopen(oname_, "at");
+  fprintf(output_,
+          "rank_=%d : %s %s %d : totalMemDevice=%1.5g\n", rank_,
+          __FILE__, __FUNCTION__, __LINE__, totalMemDevice / 1.e9);
+  fclose(output_);
 #endif
 
   /* clear this data so that the next time a coeffApplier is built, these get
@@ -1420,22 +1383,22 @@ HypreLinearSystem::resetCoeffApplierData()
     hcApplier->overset_mat_counter_ = 0;
     hcApplier->overset_rhs_counter_ = 0;
 
-    Kokkos::deep_copy(hcApplier->cols_uvm_, cols_host_);
-    Kokkos::deep_copy(rows_uvm_, rows_host_);
-    Kokkos::deep_copy(rhs_rows_uvm_, rhs_rows_host_);
-    Kokkos::deep_copy(hcApplier->values_uvm_, 0);
-    Kokkos::deep_copy(hcApplier->rhs_uvm_, 0);
+    Kokkos::deep_copy(hcApplier->cols_dev_, cols_host_);
+    Kokkos::deep_copy(rows_dev_, rows_host_);
+    Kokkos::deep_copy(rhs_rows_dev_, rhs_rows_host_);
+    Kokkos::deep_copy(hcApplier->values_dev_, 0);
+    Kokkos::deep_copy(hcApplier->rhs_dev_, 0);
 
     // set the random access memory textures
     hcApplier->mat_row_start_owned_ra_ = hcApplier->mat_row_start_owned_;
     hcApplier->mat_row_start_shared_ra_ = hcApplier->mat_row_start_shared_;
-    hcApplier->cols_uvm_ra_ = hcApplier->cols_uvm_;
+    hcApplier->cols_dev_ra_ = hcApplier->cols_dev_;
 
     auto N = hcApplier->periodic_bc_rows_owned_.extent(0);
     auto periodic_bc_rows = hcApplier->periodic_bc_rows_owned_;
     auto mat_row_start_owned = hcApplier->mat_row_start_owned_ra_;
-    auto vals = hcApplier->values_uvm_;
-    auto rhs_vals = hcApplier->rhs_uvm_;
+    auto vals = hcApplier->values_dev_;
+    auto rhs_vals = hcApplier->rhs_dev_;
     auto nDim = hcApplier->nDim_;
 
     auto iLower = iLower_;
@@ -1474,8 +1437,8 @@ HypreLinearSystem::finishCoupledOversetAssembly()
     auto ovals = hcApplier->d_overset_vals_;
     auto iLower = iLower_;
     auto mat_row_start = hcApplier->mat_row_start_owned_ra_;
-    auto cols_uvm = hcApplier->cols_uvm_ra_;
-    auto vals = hcApplier->values_uvm_;
+    auto cols_dev = hcApplier->cols_dev_ra_;
+    auto vals = hcApplier->values_dev_;
     /* write to the matrix */
     Kokkos::parallel_for(
       "fillOversetMatrixRows", N, KOKKOS_LAMBDA(const unsigned& i) {
@@ -1486,7 +1449,7 @@ HypreLinearSystem::finishCoupledOversetAssembly()
         unsigned upper = mat_row_start(row - iLower + 1) - 1;
         unsigned matIndex = lower;
         for (matIndex = lower; matIndex <= upper; ++matIndex) {
-          if (cols_uvm(matIndex) == col)
+          if (cols_dev(matIndex) == col)
             break;
         }
         vals(matIndex) = ovals(i);
@@ -1502,7 +1465,7 @@ HypreLinearSystem::finishCoupledOversetAssembly()
     N = hcApplier->d_overset_rhs_vals_.extent(0);
     auto orow_indices = hcApplier->d_overset_row_indices_;
     auto orvals = hcApplier->d_overset_rhs_vals_;
-    auto rhs_vals = hcApplier->rhs_uvm_;
+    auto rhs_vals = hcApplier->rhs_dev_;
     /* write to the rhs */
     Kokkos::parallel_for(
       "fillOversetRhsVector", N, KOKKOS_LAMBDA(const unsigned& i) {
@@ -1532,18 +1495,55 @@ HypreLinearSystem::hypreIJMatrixSetAddToValues()
 #endif
   }
 
+  if (solver->getConfig()->getWritePreassemblyMatrixFiles()) {
+    MPI_Barrier(realm_.bulk_data().parallel());
+
+    std::string writeCounter = std::to_string(eqSys_->linsysWriteCounter_);
+    const std::string matFileRows = eqSysName_ + ".IJM." + writeCounter + ".mat." + std::to_string(rank_) + ".preassem.i";
+    const std::string matFileCols = eqSysName_ + ".IJM." + writeCounter + ".mat." + std::to_string(rank_) + ".preassem.j";
+    const std::string matFileVals = eqSysName_ + ".IJM." + writeCounter + ".mat." + std::to_string(rank_) + ".preassem.v";
+    const std::string matFileMeta = eqSysName_ + ".IJM." + writeCounter + ".mat." + std::to_string(rank_) + ".preassem.meta";
+
+    FILE * fid = fopen(matFileRows.c_str(), "wb");
+    fwrite(rows_dev_.data(), sizeof(HypreIntType), num_nonzeros_owned+num_nonzeros_shared, fid);
+    fclose(fid);
+
+    fid = fopen(matFileCols.c_str(), "wb");
+    fwrite(hcApplier->cols_dev_.data(), sizeof(HypreIntType), num_nonzeros_owned+num_nonzeros_shared, fid);
+    fclose(fid);
+
+    fid = fopen(matFileVals.c_str(), "wb");
+    fwrite(hcApplier->values_dev_.data(), sizeof(double), num_nonzeros_owned+num_nonzeros_shared, fid);
+    fclose(fid);
+
+    fid = fopen(matFileMeta.c_str(), "wb");
+    HypreIntType meta[6] = {globalNumRows_, iLower_, iUpper_, num_nonzeros_owned, num_nonzeros_shared, (HypreIntType) rows_dev_.extent(0)};
+    fwrite(meta, sizeof(HypreIntType), 6, fid);
+    fclose(fid);
+
+    MPI_Barrier(realm_.bulk_data().parallel());
+  }
+
   if (num_nonzeros_owned) {
     /* Set the owned part */
-    HYPRE_IJMatrixSetValues2(mat_, num_nonzeros_owned, NULL, rows_uvm_.data(), NULL,
- 			     hcApplier->cols_uvm_.data(), hcApplier->values_uvm_.data());
+    HYPRE_IJMatrixSetValues2(mat_, num_nonzeros_owned, NULL, rows_dev_.data(), NULL,
+                             hcApplier->cols_dev_.data(), hcApplier->values_dev_.data());
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+    scanBufferForBadValues(hcApplier->values_dev_.data(), num_nonzeros_owned, __FILE__,__FUNCTION__,__LINE__,"Owned Matrix");
+    scanOwnedIndicesForBadValues(rows_dev_.data(), hcApplier->cols_dev_.data(), num_nonzeros_owned, __FILE__,__FUNCTION__,__LINE__);
+#endif
   }
 
   if (num_nonzeros_shared) {
     /* Add the shared part */
-    HYPRE_IJMatrixAddToValues2(mat_, num_nonzeros_shared, NULL, rows_uvm_.data()+num_nonzeros_owned, NULL,
-			       hcApplier->cols_uvm_.data()+num_nonzeros_owned, hcApplier->values_uvm_.data()+num_nonzeros_owned);
+    HYPRE_IJMatrixAddToValues2(mat_, num_nonzeros_shared, NULL, rows_dev_.data()+num_nonzeros_owned, NULL,
+                               hcApplier->cols_dev_.data()+num_nonzeros_owned, hcApplier->values_dev_.data()+num_nonzeros_owned);
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+    scanBufferForBadValues(hcApplier->values_dev_.data()+num_nonzeros_owned, num_nonzeros_shared, __FILE__,__FUNCTION__,__LINE__,"Shared Matrix");
+    scanSharedIndicesForBadValues(rows_dev_.data()+num_nonzeros_owned, hcApplier->cols_dev_.data()+num_nonzeros_owned, num_nonzeros_shared, __FILE__,__FUNCTION__,__LINE__);
+#endif
   }
-} 
+}
 
 
 void
@@ -1566,18 +1566,42 @@ HypreLinearSystem::hypreIJVectorSetAddToValues()
 #endif
   }
 
+  if (solver->getConfig()->getWritePreassemblyMatrixFiles()) {
+    MPI_Barrier(realm_.bulk_data().parallel());
+
+    std::string writeCounter = std::to_string(eqSys_->linsysWriteCounter_);
+    const std::string rhsFileRows = eqSysName_ + ".IJV." + writeCounter + ".rhs." + std::to_string(rank_) + ".preassem.i";
+    const std::string rhsFileVals = eqSysName_ + ".IJV." + writeCounter + ".rhs." + std::to_string(rank_) + ".preassem.v";
+    const std::string rhsFileMeta = eqSysName_ + ".IJV." + writeCounter + ".rhs." + std::to_string(rank_) + ".preassem.meta";
+
+    FILE * fid = fopen(rhsFileRows.c_str(), "wb");
+    fwrite(rhs_rows_dev_.data(), sizeof(HypreIntType), num_rows_owned+num_rows_shared, fid);
+    fclose(fid);
+
+    fid = fopen(rhsFileVals.c_str(), "wb");
+    fwrite(hcApplier->rhs_dev_.data(), sizeof(double), num_rows_owned+num_rows_shared, fid);
+    fclose(fid);
+
+    fid = fopen(rhsFileMeta.c_str(), "wb");
+    HypreIntType meta[3] = {num_rows_owned, num_rows_shared, (HypreIntType) rhs_rows_dev_.extent(0)};
+    fwrite(meta, sizeof(HypreIntType), 3, fid);
+    fclose(fid);
+
+    MPI_Barrier(realm_.bulk_data().parallel());
+  }
+
   if (num_rows_owned) {
     /* Set the owned part */
     HYPRE_IJVectorSetValues(
-      rhs_, num_rows_owned, rhs_rows_uvm_.data(),
-      hcApplier->rhs_uvm_.data());
+      rhs_, num_rows_owned, rhs_rows_dev_.data(),
+      hcApplier->rhs_dev_.data());
   }
 
   if (num_rows_shared) {
     /* Add the shared part */
     HYPRE_IJVectorAddToValues(
-      rhs_, num_rows_shared, rhs_rows_uvm_.data()+num_rows_owned,
-      hcApplier->rhs_uvm_.data()+num_rows_owned);
+      rhs_, num_rows_shared, rhs_rows_dev_.data()+num_rows_owned,
+      hcApplier->rhs_dev_.data()+num_rows_owned);
   }
 }
 
@@ -1653,25 +1677,25 @@ HypreLinearSystem::dumpMatrixStats()
     std::ofstream myfile;
     myfile.open(fname);
     myfile << "rank"
-	   << ",lower"
-	   << ",upper"
-	   << ",num_rows"
-	   << ",nnz"
-	   << ",nnz_owned"
-	   << ",nnz_send"
-	   << ",nnz_recv"
-	   << std::endl;
-    
+           << ",lower"
+           << ",upper"
+           << ",num_rows"
+           << ",nnz"
+           << ",nnz_owned"
+           << ",nnz_send"
+           << ",nnz_recv"
+           << std::endl;
+
     for (int i=0; i<nprocs; ++i) {
       myfile << i
-	     << "," << realm_.hypreOffsets_[i]
-	     << "," << realm_.hypreOffsets_[i+1]
-	     << "," << nrows[i]
-	     << "," << globalNNZPerProc[i]
-	     << "," << nnz_owned[i]
-	     << "," << nnz_send[i]
-	     << "," << nnz_recv[i]
-	     << std::endl;
+             << "," << realm_.hypreOffsets_[i]
+             << "," << realm_.hypreOffsets_[i+1]
+             << "," << nrows[i]
+             << "," << globalNNZPerProc[i]
+             << "," << nnz_owned[i]
+             << "," << nnz_send[i]
+             << "," << nnz_recv[i]
+             << std::endl;
     }
     myfile.close();
   }
@@ -1692,6 +1716,22 @@ HypreLinearSystem::loadCompleteSolver()
 
   HYPRE_IJMatrixAssemble(mat_);
   HYPRE_IJMatrixGetObject(mat_, (void**)&(solver->parMat_));
+
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+  hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag((hypre_ParCSRMatrix*)hypre_IJMatrixObject(mat_));
+  hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd((hypre_ParCSRMatrix*)hypre_IJMatrixObject(mat_));
+  HYPRE_Int nnz_diag = hypre_CSRMatrixNumNonzeros(diag);
+  HYPRE_Int nnz_offd = hypre_CSRMatrixNumNonzeros(offd);
+  double * ptr_diag = hypre_CSRMatrixData(diag);
+  double * ptr_offd = hypre_CSRMatrixData(offd);
+  scanBufferForBadValues(ptr_diag, nnz_diag, __FILE__,__FUNCTION__,__LINE__,"Diag Matrix");
+  scanBufferForBadValues(ptr_offd, nnz_offd, __FILE__,__FUNCTION__,__LINE__,"Offd Matrix");
+  output_ = fopen(oname_, "at");
+  fprintf(output_, "rank=%d : diag num_rows=%d, num_cols=%d, offd num_rows=%d, num_cols=%d\n",rank_,
+         hypre_CSRMatrixNumRows(diag),hypre_CSRMatrixNumCols(diag),hypre_CSRMatrixNumRows(offd),hypre_CSRMatrixNumCols(offd));
+  fclose(output_);
+#endif
+
 
 #ifdef HYPRE_LINEAR_SYSTEM_TIMER
   gettimeofday(&_stop, NULL);
@@ -1721,10 +1761,6 @@ HypreLinearSystem::loadCompleteSolver()
     dumpMatrixStats();
     matrixStatsDumped_ = true;
   }
-
-  // Set flag to indicate zeroSystem that the matrix must be reinitialized
-  // during the next invocation.
-  matrixAssembled_ = true;
 }
 
 void
@@ -1774,28 +1810,54 @@ HypreLinearSystem::loadComplete()
 void
 HypreLinearSystem::zeroSystem()
 {
+  // Now perform HYPRE assembly so that the data structures are ready to be used
+  // by the solvers/preconditioners.
   HypreDirectSolver* solver =
     reinterpret_cast<HypreDirectSolver*>(linearSolver_);
 
-  // It is unsafe to call IJMatrixInitialize multiple times without intervening
-  // call to IJMatrixAssemble. This occurs during the first outer iteration (of
-  // first timestep in static application and every timestep in moving mesh
-  // applications) when the data structures have been created but never used and
-  // zeroSystem is called for a reset. Include a check to ensure we only
-  // initialize if it was previously assembled.
-  if (matrixAssembled_) {
-    HYPRE_IJMatrixInitialize(mat_);
-    HYPRE_IJVectorInitialize(rhs_);
-    HYPRE_IJVectorInitialize(sln_);
+  MPI_Comm comm = realm_.bulk_data().parallel();
 
-    // Set flag to false until next invocation of IJMatrixAssemble in
-    // loadComplete
-    matrixAssembled_ = false;
+  if (hypreMatrixVectorCreated_) {
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+      sprintf(oname_,"debug_out_%d.txt",rank_);
+      output_ = fopen(oname_, "wt");
+      fprintf(output_, "rank_=%d EqnName=%s : %s %s %d\n",
+              rank_, name_.c_str(), __FILE__, __FUNCTION__, __LINE__);
+      fclose(output_);
+#endif
+    HYPRE_IJMatrixDestroy(mat_);
+    HYPRE_IJVectorDestroy(rhs_);
+    HYPRE_IJVectorDestroy(sln_);
+    hypreMatrixVectorCreated_ = false;
   }
 
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+  sprintf(oname_,"debug_out_%d.txt",rank_);
+  output_ = fopen(oname_, "wt");
+  fprintf(output_, "rank_=%d EqnName=%s : %s %s %d\n",
+          rank_, name_.c_str(), __FILE__, __FUNCTION__, __LINE__);
+  fclose(output_);
+#endif
+
+  HYPRE_IJMatrixCreate(comm, iLower_, iUpper_, jLower_, jUpper_, &mat_);
+  HYPRE_IJMatrixSetObjectType(mat_, HYPRE_PARCSR);
+  HYPRE_IJMatrixInitialize(mat_);
+  HYPRE_IJMatrixGetObject(mat_, (void**)&(solver->parMat_));
   HYPRE_IJMatrixSetConstantValues(mat_, 0.0);
+
+  HYPRE_IJVectorCreate(comm, iLower_, iUpper_, &rhs_);
+  HYPRE_IJVectorSetObjectType(rhs_, HYPRE_PARCSR);
+  HYPRE_IJVectorInitialize(rhs_);
+  HYPRE_IJVectorGetObject(rhs_, (void**)&(solver->parRhs_));
   HYPRE_ParVectorSetConstantValues(solver->parRhs_, 0.0);
+
+  HYPRE_IJVectorCreate(comm, iLower_, iUpper_, &sln_);
+  HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
+  HYPRE_IJVectorInitialize(sln_);
+  HYPRE_IJVectorGetObject(sln_, (void**)&(solver->parSln_));
   HYPRE_ParVectorSetConstantValues(solver->parSln_, 0.0);
+
+  hypreMatrixVectorCreated_ = true;
 }
 
 sierra::nalu::CoeffApplier*
@@ -1828,11 +1890,11 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sort(
   const SharedMemView<int*, DeviceShmem>& localIds,
   const SharedMemView<int*, DeviceShmem>& sortPermutation,
   unsigned N)
-{ 
+{
   if (N==2) {
     int tmp;
     if (localIds[0] > localIds[1]) { tmp = localIds[0]; localIds[0] = localIds[1]; localIds[1] = tmp; tmp = sortPermutation[0]; sortPermutation[0] = sortPermutation[1]; sortPermutation[1] = tmp;}
-  } 
+  }
   else if (N==3) {
     int tmp;
     if (localIds[0] > localIds[1]) { tmp = localIds[0]; localIds[0] = localIds[1]; localIds[1] = tmp; tmp = sortPermutation[0]; sortPermutation[0] = sortPermutation[1]; sortPermutation[1] = tmp;}
@@ -1848,16 +1910,16 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sort(
     if (localIds[1] > localIds[2]) { tmp = localIds[1]; localIds[1] = localIds[2]; localIds[2] = tmp; tmp = sortPermutation[1]; sortPermutation[1] = sortPermutation[2]; sortPermutation[2] = tmp;}
   }
   else {
-    for (unsigned i = 0; i < N-1; ++i)       
-      for (unsigned j = 0; j < N-i-1; ++j) 
-	if (localIds[j] > localIds[j+1]) {
-	  int t = localIds[j];
-	  localIds[j] = localIds[j+1];
-	  localIds[j+1] = t;
-	  t = sortPermutation[j];
-	  sortPermutation[j] = sortPermutation[j+1];
-	  sortPermutation[j+1] = t;
-	}
+    for (unsigned i = 0; i < N-1; ++i)
+      for (unsigned j = 0; j < N-i-1; ++j)
+        if (localIds[j] > localIds[j+1]) {
+          int t = localIds[j];
+          localIds[j] = localIds[j+1];
+          localIds[j+1] = t;
+          t = sortPermutation[j];
+          sortPermutation[j] = sortPermutation[j+1];
+          sortPermutation[j+1] = t;
+        }
   }
 }
 
@@ -1911,24 +1973,24 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sum_into(
         unsigned ir = ix + d;
         hid = localIds[ir];
 
-	int ii = sortPermutation[ir];
+        int ii = sortPermutation[ir];
         const double* cur_lhs = &lhs(ii, 0);
 
-	HypreIntType index = hid - iLower;
+        HypreIntType index = hid - iLower;
 
         /* fill the matrix values */
-	unsigned matIndex = mat_row_start_owned_ra_(index);
+        unsigned matIndex = mat_row_start_owned_ra_(index);
         for (unsigned k = 0; k < numRows; ++k) {
           /* binary search subrange rather than a map.find */
           HypreIntType col = localIds[k];
-	  while(cols_uvm_ra_(matIndex)<col) matIndex++;
-	  int kk = sortPermutation[k];
+          while(cols_dev_ra_(matIndex)<col) matIndex++;
+          int kk = sortPermutation[k];
 
           /* write the matrix element */
-          Kokkos::atomic_add(&values_uvm_(matIndex), cur_lhs[kk]);
+          Kokkos::atomic_add(&values_dev_(matIndex), cur_lhs[kk]);
         }
         /* fill the right hand side values */
-        Kokkos::atomic_add(&rhs_uvm_(index, 0), rhs[ii]);
+        Kokkos::atomic_add(&rhs_dev_(index, 0), rhs[ii]);
       }
 
     } else {
@@ -1937,7 +1999,7 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sum_into(
         unsigned ir = ix + d;
         hid = localIds[ir];
 
-	int ii = sortPermutation[ir];
+        int ii = sortPermutation[ir];
         const double* cur_lhs = &lhs(ii, 0);
 
         if (!map_shared_.exists(hid))
@@ -1951,14 +2013,14 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sum_into(
         for (unsigned k = 0; k < numRows; ++k) {
           /* binary search subrange rather than a map.find */
           HypreIntType col = localIds[k];
-          while(cols_uvm_ra_(matIndex)<col) matIndex++;
-	  int kk = sortPermutation[k];
+          while(cols_dev_ra_(matIndex)<col) matIndex++;
+          int kk = sortPermutation[k];
           /* write the matrix element */
-          Kokkos::atomic_add(&values_uvm_(matIndex), cur_lhs[kk]);
+          Kokkos::atomic_add(&values_dev_(matIndex), cur_lhs[kk]);
         }
         /* fill the right hand side values */
         unsigned rhsIndex = rhs_row_start_shared_(index) + (iUpper-iLower+1);
-        Kokkos::atomic_add(&rhs_uvm_(rhsIndex, 0), rhs[ii]);
+        Kokkos::atomic_add(&rhs_dev_(rhsIndex, 0), rhs[ii]);
       }
     }
   }
@@ -2008,14 +2070,14 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sum_into_1DoF(
       for (unsigned k = 0; k < numEntities; ++k) {
         /* binary search subrange rather than a map.find */
         HypreIntType col = localIds[k];
-	while(cols_uvm_ra_(matIndex)<col) matIndex++;
+        while(cols_dev_ra_(matIndex)<col) matIndex++;
         /* write the matrix element */
-	int kk = sortPermutation[k];
-        Kokkos::atomic_add(&values_uvm_(matIndex), cur_lhs[kk]);
-	matIndex++;
+        int kk = sortPermutation[k];
+        Kokkos::atomic_add(&values_dev_(matIndex), cur_lhs[kk]);
+        matIndex++;
       }
       /* fill the right hand side values */
-      Kokkos::atomic_add(&rhs_uvm_(index, 0), rhs[ii]);
+      Kokkos::atomic_add(&rhs_dev_(index, 0), rhs[ii]);
 
     } else {
 
@@ -2027,15 +2089,15 @@ HypreLinearSystem::HypreLinSysCoeffApplier::sum_into_1DoF(
       for (unsigned k = 0; k < numEntities; ++k) {
         /* binary search subrange rather than a map.find */
         HypreIntType col = localIds[k];
-	while(cols_uvm_ra_(matIndex)<col) matIndex++;
+        while(cols_dev_ra_(matIndex)<col) matIndex++;
         /* write the matrix element */
-	int kk = sortPermutation[k];
-        Kokkos::atomic_add(&values_uvm_(matIndex), cur_lhs[kk]);
-	matIndex++;
+        int kk = sortPermutation[k];
+        Kokkos::atomic_add(&values_dev_(matIndex), cur_lhs[kk]);
+        matIndex++;
       }
       /* fill the right hand side values */
       unsigned rhsIndex = rhs_row_start_shared_(index) + (iUpper-iLower+1);
-      Kokkos::atomic_add(&rhs_uvm_(rhsIndex, 0), rhs[ii]);
+      Kokkos::atomic_add(&rhs_dev_(rhsIndex, 0), rhs[ii]);
     }
   }
 }
@@ -2083,14 +2145,14 @@ HypreLinearSystem::HypreLinSysCoeffApplier::reset_rows(
       HypreIntType hid = lid * numDof + d;
 
       if (hid >= iLower && hid <= iUpper) {
-	HypreIntType index = hid - iLower;
+        HypreIntType index = hid - iLower;
         unsigned lower = mat_row_start_owned_ra_(index);
         unsigned upper = mat_row_start_owned_ra_(index + 1);
         for (unsigned k = lower; k < upper; ++k) {
-          values_uvm_(k) = 0.0;
-	  if (cols_uvm_ra_(k)==hid) values_uvm_(k) = diag_value;
-	}
-        rhs_uvm_(hid - iLower, 0) = rhs_residual;
+          values_dev_(k) = 0.0;
+          if (cols_dev_ra_(k)==hid) values_dev_(k) = diag_value;
+        }
+        rhs_dev_(hid - iLower, 0) = rhs_residual;
 
       } else {
         if (!map_shared_.exists(hid))
@@ -2099,11 +2161,11 @@ HypreLinearSystem::HypreLinSysCoeffApplier::reset_rows(
         unsigned lower = mat_row_start_shared_ra_(index) + memShift;
         unsigned upper = mat_row_start_shared_ra_(index + 1) + memShift;
         for (unsigned k = lower; k < upper; ++k) {
-          values_uvm_(k) = 0.0;
-	  if (cols_uvm_ra_(k)==hid) values_uvm_(k) = diag_value;
-	}
+          values_dev_(k) = 0.0;
+          if (cols_dev_ra_(k)==hid) values_dev_(k) = diag_value;
+        }
         unsigned rhsIndex = rhs_row_start_shared_(index) + (iUpper-iLower+1);
-        rhs_uvm_(rhsIndex, 0) = rhs_residual;
+        rhs_dev_(rhsIndex, 0) = rhs_residual;
       }
     }
   }
@@ -2230,8 +2292,8 @@ HypreLinearSystem::applyDirichletBCs(
   const auto& ngpMesh = hcApplier->ngpMesh_;
   const auto hypreGID = hcApplier->ngpHypreGlobalId_;
   auto mat_row_start_owned = hcApplier->mat_row_start_owned_ra_;
-  auto vals = hcApplier->values_uvm_;
-  auto rhs_vals = hcApplier->rhs_uvm_;
+  auto vals = hcApplier->values_dev_;
+  auto rhs_vals = hcApplier->rhs_dev_;
 
   auto numDof = numDof_;
   auto iLower = iLower_;
@@ -2283,7 +2345,17 @@ HypreLinearSystem::solve(stk::mesh::FieldBase* linearSolutionField)
   // Call solve
   int status = 0;
 
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+  output_ = fopen(oname_, "at");
+  fprintf(output_, "%s %s %d %s : rank=%d\n",__FILE__,__FUNCTION__,__LINE__,eqSysName_.c_str(),rank_);
+#endif
+
   status = solver->solve(iters, finalResidNorm, realm_.isFinalOuterIter_);
+
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+  fprintf(output_, "%s %s %d %s : rank=%d\n",__FILE__,__FUNCTION__,__LINE__,eqSysName_.c_str(),rank_);
+  fclose(output_);
+#endif
 
   /* set this after the solve calls */
   solver->set_initialize_solver_flag();
@@ -2381,6 +2453,11 @@ HypreLinearSystem::copy_hypre_to_stk(stk::mesh::FieldBase* stkField)
 
   /********************/
   /* Compute RHS norm */
+#if 1
+  /* Use Hypre internal APIs */
+  double gblnorm2 = hypre_ParVectorInnerProd ( (hypre_ParVector*)hypre_IJVectorObject(rhs_),
+                                               (hypre_ParVector*)hypre_IJVectorObject(rhs_) );
+#else
   double rhsnorm2 = 0.0;
 
   /* use internal hypre APIs to get directly at the pointer to the owned RHS
@@ -2397,8 +2474,79 @@ HypreLinearSystem::copy_hypre_to_stk(stk::mesh::FieldBase* stkField)
 
   double gblnorm2 = 0.0;
   stk::all_reduce_sum(bulk.parallel(), &rhsnorm2, &gblnorm2, 1);
+#endif
+  
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+  scanBufferForBadValues(rhs_data, N, __FILE__,__FUNCTION__,__LINE__,"RHS");
+  scanBufferForBadValues(sln_data, N, __FILE__,__FUNCTION__,__LINE__,"SLN");
+#endif
   return std::sqrt(gblnorm2);
 }
+
+
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+void
+HypreLinearSystem::scanBufferForBadValues(double * ptr, int N, const char * file, const char * func, int line, char * bufferName)
+{
+  output_ = fopen(oname_, "at");
+  bool foundBadValue=false;
+  int index=-1;
+  double value=0;
+  for (int i=0; i<N; ++i)
+    if (!std::isfinite(ptr[i])) {
+      foundBadValue=true;
+      index = i;
+      value = ptr[i];
+      break;
+    }
+  if (foundBadValue)
+    fprintf(output_, "%s %s %d %s : Found Bad %s value %1.15g at %d on rank %d\n",file,func,line,eqSysName_.c_str(),bufferName,value,index,rank_);
+  else
+    fprintf(output_, "%s %s %d %s : All %s values good on rank %d\n",file,func,line,eqSysName_.c_str(),bufferName,rank_);
+  fclose(output_);
+  return;
+}
+
+void
+HypreLinearSystem::scanOwnedIndicesForBadValues(HypreIntType * rows, HypreIntType * cols, int N, const char * file, const char * func, int line)
+{
+  output_ = fopen(oname_, "at");
+  for (int i=0; i<N; ++i) {
+    if (rows[i]<0 || rows[i]>=globalNumRows_ || cols[i]<0 || cols[i]>=globalNumRows_) {
+      fprintf(output_, "Very Bad : %s %s %d %s, Owned Matrix : Found Row/Column Index (%d,%d) outside of (%d, %d) at %d on rank %d\n",file,func,line,eqSysName_.c_str(),rows[i],cols[i],0,globalNumRows_,i,rank_);
+      return;
+    }
+    else if (rows[i]<iLower_ || rows[i]>iUpper_) {
+      fprintf(output_, "Bad : %s %s %d %s, Owned Matrix : Found Row/Column Index (%d,%d) outside range (%d, %d) at %d on rank %d\n",file,func,line,eqSysName_.c_str(),rows[i],cols[i],iLower_,iUpper_,i,rank_);
+      return;
+    }
+  }
+  fprintf(output_, "%s %s %d %s : All Owned Indices good on rank %d\n",file,func,line,eqSysName_.c_str(),rank_);
+  fclose(output_);
+  return;
+}
+
+void
+HypreLinearSystem::scanSharedIndicesForBadValues(HypreIntType * rows, HypreIntType * cols, int N, const char * file, const char * func, int line)
+{
+  output_ = fopen(oname_, "at");
+  for (int i=0; i<N; ++i) {
+    if (rows[i]<0 || rows[i]>=globalNumRows_ || cols[i]<0 || cols[i]>=globalNumRows_) {
+      fprintf(output_, "Very Bad : %s %s %d %s, Shared Matrix : Found Row/Column Index (%d,%d) outside of (%d, %d) at %d on rank %d\n",file,func,line,eqSysName_.c_str(),rows[i],cols[i],0,globalNumRows_,i,rank_);
+      return;
+    }
+    else if (rows[i]>=iLower_ && rows[i]<=iUpper_) {
+      fprintf(output_, "Bad : %s %s %d %s, Shared Matrix : Found Row/Column Index (%d,%d) inside range (%d, %d) at %d on rank %d\n",file,func,line,eqSysName_.c_str(),rows[i],cols[i],iLower_,iUpper_,i,rank_);
+      return;
+    }
+  }
+  fprintf(output_, "%s %s %d %s : All Shared Indices good on rank %d\n",file,func,line,eqSysName_.c_str(),rank_);
+  fclose(output_);
+  return;
+}
+#endif
+
+
 
 } // namespace nalu
 } // namespace sierra

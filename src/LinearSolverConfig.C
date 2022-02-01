@@ -128,6 +128,7 @@ TpetraLinearSolverConfig::load(const YAML::Node & node)
 
 
   get_if_present(node, "write_matrix_files",       writeMatrixFiles_,        writeMatrixFiles_);
+  get_if_present(node, "write_preassembly_matrix_files", writePreassemblyMatrixFiles_, writePreassemblyMatrixFiles_);
   get_if_present(node, "summarize_muelu_timer",    summarizeMueluTimer_,     summarizeMueluTimer_);
 
   get_if_present(node, "recompute_preconditioner", recomputePreconditioner_, recomputePreconditioner_);

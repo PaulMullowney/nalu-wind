@@ -47,6 +47,9 @@ public:
   inline bool getWriteMatrixFiles() const
   { return writeMatrixFiles_; }
 
+  inline bool getWritePreassemblyMatrixFiles() const
+  { return writePreassemblyMatrixFiles_; }
+
   inline bool recomputePreconditioner() const
   { return recomputePreconditioner_; }
 
@@ -77,7 +80,7 @@ public:
 
   std::string preconditioner_name() const
   { return precond_;}
-  
+
   inline double tolerance() const { return tolerance_; }
   inline double finalTolerance() const { return finalTolerance_; }
 
@@ -102,6 +105,7 @@ protected:
   bool reusePreconditioner_{false};
   bool useSegregatedSolver_{false};
   bool writeMatrixFiles_{false};
+  bool writePreassemblyMatrixFiles_{false};
   bool reuseLinSysIfPossible_{false};
 };
 

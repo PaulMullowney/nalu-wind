@@ -17,6 +17,8 @@ linear_solvers:
     output_level: 0
     segregated_solver: yes
     write_matrix_files: no
+    recompute_preconditioner_frequency: 1
+    reuse_linear_system: yes
     simple_hypre_matrix_assemble: no
     dump_hypre_matrix_stats: no
 
@@ -34,6 +36,8 @@ linear_solvers:
     kspace: 75
     output_level: 0
     write_matrix_files: no
+    recompute_preconditioner_frequency: 1
+    reuse_linear_system: yes
     simple_hypre_matrix_assemble: no
     dump_hypre_matrix_stats: no
 

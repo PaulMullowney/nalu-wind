@@ -75,6 +75,7 @@ using MemoryMap =
   Kokkos::UnorderedMap<HypreIntType, unsigned, sierra::nalu::MemSpace>;
 using MemoryMapHost = MemoryMap::HostMirror;
 
+#if 0
 // UVM Views
 using DoubleViewUVM = Kokkos::View<double*, sierra::nalu::UVMSpace>;
 using DoubleView2DUVM =
@@ -82,6 +83,7 @@ using DoubleView2DUVM =
 using HypreIntTypeViewUVM = Kokkos::View<HypreIntType*, sierra::nalu::UVMSpace>;
 using HypreIntTypeView2DUVM =
   Kokkos::View<HypreIntType**, Kokkos::LayoutLeft, sierra::nalu::UVMSpace>;
+#endif
 
 // Periodic Node Map
 using PeriodicNodeMap =
@@ -146,11 +148,16 @@ public:
   HypreIntTypeViewHost cols_shared_host_;
   HypreIntTypeViewHost cols_host_;
 
-  HypreIntTypeViewUVM rows_uvm_;
-  HypreIntTypeViewHost rows_host_;  
+  HypreIntTypeView rows_dev_;
+  HypreIntTypeViewHost rows_host_;
 
-  HypreIntTypeView2DUVM rhs_rows_uvm_;
-  HypreIntTypeView2DHost rhs_rows_host_;  
+  HypreIntTypeView2D rhs_rows_dev_;
+  HypreIntTypeView2DHost rhs_rows_host_;
+
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+  FILE * output_ = NULL;
+  char oname_[50];
+#endif
 
 #ifdef HYPRE_LINEAR_SYSTEM_TIMER
   struct timeval _start, _stop;
@@ -230,6 +237,12 @@ public:
   //! Helper method to transfer the solution from a HYPRE_IJVector instance to
   //! the STK field data instance.
   double copy_hypre_to_stk(stk::mesh::FieldBase*);
+
+#ifdef HYPRE_LINEAR_SYSTEM_DEBUG
+  void scanBufferForBadValues(double * ptr, int N, const char * file, const char * func, int line, char *bufferName);
+  void scanOwnedIndicesForBadValues(HypreIntType * rows, HypreIntType * cols, int N, const char * file, const char * func, int line);
+  void scanSharedIndicesForBadValues(HypreIntType * rows, HypreIntType * cols, int N, const char * file, const char * func, int line);
+#endif
 
   /** Populate the LHS and RHS for the Dirichlet rows in linear system
    */
@@ -358,9 +371,9 @@ public:
 
     /* monolithic data structures for holding all the values for
        the owned and shared parts. Shared MUST come after owned. */
-    DoubleViewUVM values_uvm_;
-    HypreIntTypeViewUVM cols_uvm_;
-    DoubleView2DUVM rhs_uvm_;
+    DoubleView values_dev_;
+    HypreIntTypeView cols_dev_;
+    DoubleView2D rhs_dev_;
 
     //! Data structures for the owned CSR Matrix and RHS Vector(s)
     HypreIntType num_rows_owned_;
@@ -378,7 +391,7 @@ public:
     //! Random access views
     UnsignedViewRA mat_row_start_owned_ra_;
     UnsignedViewRA mat_row_start_shared_ra_;
-    HypreIntTypeViewRA cols_uvm_ra_;
+    HypreIntTypeViewRA cols_dev_ra_;
 
     //! Auxilliary Data structures
 
@@ -510,8 +523,6 @@ protected:
    */
   virtual void beginLinearSystemConstruction();
 
-  virtual void finalizeSolver();
-
   virtual void loadCompleteSolver();
 
   /** Return the Hypre ID corresponding to the given STK node entity
@@ -552,11 +563,8 @@ protected:
   //! Maximum Row ID in the Hypre linear system
   HypreIntType maxRowID_;
 
-  //! Flag indicating whether IJMatrixAssemble has been called on the system
-  bool matrixAssembled_{false};
-
   //! Flag indicating whether the linear system has been initialized
-  bool systemInitialized_{false};
+  bool hypreMatrixVectorCreated_{false};
 
   //! Flag indicating whether the linear system has been initialized
   bool matrixStatsDumped_{false};

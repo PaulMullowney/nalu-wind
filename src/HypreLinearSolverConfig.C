@@ -47,6 +47,7 @@ HypreLinearSolverConfig::load(const YAML::Node& node)
   get_if_present(node, "sync_alg", sync_alg_, sync_alg_);
 
   get_if_present(node, "write_matrix_files", writeMatrixFiles_, writeMatrixFiles_);
+  get_if_present(node, "write_preassembly_matrix_files", writePreassemblyMatrixFiles_, writePreassemblyMatrixFiles_);
 
   get_if_present(node, "recompute_preconditioner",
                  recomputePreconditioner_, recomputePreconditioner_);
@@ -174,6 +175,8 @@ void
 HypreLinearSolverConfig::boomerAMG_precond_config(const YAML::Node& node)
 {
   int output_level = 0;
+  int logging = 0;
+  int debug = 0;
 
   get_if_present(node, "bamg_coarsen_type", bamgCoarsenType_, bamgCoarsenType_);
   get_if_present(node, "bamg_cycle_type", bamgCycleType_, bamgCycleType_);
@@ -186,13 +189,18 @@ HypreLinearSolverConfig::boomerAMG_precond_config(const YAML::Node& node)
   get_if_present(node, "bamg_max_levels", bamgMaxLevels_, bamgMaxLevels_);
   get_if_present(node, "bamg_strong_threshold", bamgStrongThreshold_, bamgStrongThreshold_);
   get_if_present(node, "bamg_output_level", output_level, output_level);
+  get_if_present(node, "bamg_logging", logging, logging);
+  get_if_present(node, "bamg_debug", debug, debug);
 
   funcParams_.push_back(Teuchos::rcp(new Ifpack2::FunctionParameter(
     Ifpack2::Hypre::Prec, &HYPRE_BoomerAMGSetPrintLevel,
     output_level))); // print AMG solution info
   funcParams_.push_back(Teuchos::rcp(new Ifpack2::FunctionParameter(
     Ifpack2::Hypre::Prec, &HYPRE_BoomerAMGSetLogging,
-    output_level))); // print AMG solution info
+    logging))); // print AMG solution info
+  funcParams_.push_back(Teuchos::rcp(new Ifpack2::FunctionParameter(
+    Ifpack2::Hypre::Prec, &HYPRE_BoomerAMGSetDebugFlag,
+    debug))); // set debug flag
   funcParams_.push_back(Teuchos::rcp(new Ifpack2::FunctionParameter(
     Ifpack2::Hypre::Prec, &HYPRE_BoomerAMGSetCoarsenType,
     bamgCoarsenType_))); // Falgout coarsening
