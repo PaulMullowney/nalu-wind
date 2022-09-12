@@ -81,9 +81,6 @@ AMSMomentumEdgePecletAlg::execute()
       DblType asq{0.0}, axdx{0.0}, udotx{0.0};
 
       const auto edge = eInfo.meshIdx;
-      for (int d = 0; d < ndim; d++) {
-        av[d] = edgeAreaVec.get(edge, d);
-      }
       const auto& nodes = eInfo.entityNodes;
       const auto nodeL = ngpMesh.fast_mesh_index(nodes[0]);
       const auto nodeR = ngpMesh.fast_mesh_index(nodes[1]);
