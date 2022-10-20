@@ -48,6 +48,7 @@ public:
   {
   }
 
+  KOKKOS_FUNCTION
   void execute(
     sierra::nalu::
       SharedMemView<sierra::nalu::DoubleType**, ShmemType>& /* lhs */,
