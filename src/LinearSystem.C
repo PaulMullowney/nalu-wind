@@ -118,6 +118,7 @@ LinearSystem::create(
   LinearSolver* solver)
 {
   switch (solver->getType()) {
+#ifdef NALU_USES_TPETRA
   case PT_TPETRA:
     return new TpetraLinearSystem(realm, numDof, eqSys, solver);
 // Avoid nvcc unreachable statement warnings
@@ -131,7 +132,8 @@ LinearSystem::create(
 #ifndef __CUDACC__
     break;
 #endif
-
+#endif
+	 
 #ifdef NALU_USES_HYPRE
   case PT_HYPRE:
     realm.hypreIsActive_ = true;

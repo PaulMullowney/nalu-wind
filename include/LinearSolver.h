@@ -14,11 +14,14 @@
 #include <LinearSolverConfig.h>
 
 #include <Kokkos_DefaultNode.hpp>
+
+#ifdef NALU_USES_TPETRA
 #include <Tpetra_Details_DefaultTypes.hpp>
 #include <Tpetra_Vector.hpp>
 #include <Tpetra_CrsMatrix.hpp>
 #include <Teuchos_GlobalMPISession.hpp>
 #include <Teuchos_oblackholestream.hpp>
+#endif
 
 #include <Ifpack2_Factory.hpp>
 
@@ -30,6 +33,7 @@ using LocalOrdinal = sierra::nalu::LinSys::LocalOrdinal;
 using Node = Tpetra::Map<LocalOrdinal, GlobalOrdinal>::node_type;
 using STS = Teuchos::ScalarTraits<Scalar>;
 
+#ifdef NALU_USES_TPETRA
 // MueLu main header: include most common header files in one line
 #include <MueLu.hpp>
 
@@ -37,22 +41,28 @@ using STS = Teuchos::ScalarTraits<Scalar>;
 #include <MueLu_TpetraOperator.hpp>
 
 #include <MueLu_UseShortNames.hpp> // => typedef MueLu::FooClass<Scalar, LocalOrdinal, ...> Foo
+#endif
 #include <limits>
 
 namespace sierra {
 namespace nalu {
 
+class LinearSolvers;
+class Simulation;
+
+
 /** Type of solvers available in Nalu simulation **/
 enum PetraType {
+#ifdef NALU_USES_TPETRA
   PT_TPETRA,            //!< Nalu Tpetra interface
   PT_TPETRA_SEGREGATED, //!< Nalu Tpetra interface Segregated solver
+#endif
   PT_HYPRE,             //!< Direct HYPRE interface
   PT_HYPRE_SEGREGATED,  //!< Direct HYPRE Segregated momentum solver
   PT_END
 };
 
-class LinearSolvers;
-class Simulation;
+#ifdef NALU_USES_TPETRA
 
 const LocalOrdinal INVALID = std::numeric_limits<LocalOrdinal>::max();
 
@@ -139,7 +149,8 @@ private:
     }
   }
 };
-
+#endif
+	
 /** An abstract representation of a linear solver in Nalu
  *
  *  Defines the basic API supported by the linear solvers for use within Nalu.
@@ -180,7 +191,9 @@ protected:
   bool recomputePreconditioner_;
   bool reusePreconditioner_;
   double timerPrecond_;
+#ifdef NALU_USES_TPETRA
   bool activateMueLu_{false};
+#endif
 
 public:
   //! Flag indicating whether the preconditioner is recomputed on each
@@ -195,12 +208,16 @@ public:
   //! Get the preconditioner timer for the last invocation
   double get_timer_precond() { return timerPrecond_; }
 
+#ifdef NALU_USES_TPETRA
   //! Flag indicating whether the user has activated MueLU
   bool& activeMueLu() { return activateMueLu_; }
+#endif
 
   //! Get the solver configuration specified in the input file
   LinearSolverConfig* getConfig() { return config_; }
 };
+
+#ifdef NALU_USES_TPETRA
 
 class TpetraLinearSolver : public LinearSolver
 {
@@ -275,6 +292,8 @@ private:
 
   std::string preconditionerType_;
 };
+
+#endif
 
 } // namespace nalu
 } // namespace sierra

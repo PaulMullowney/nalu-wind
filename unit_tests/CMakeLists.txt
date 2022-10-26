@@ -8,7 +8,6 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestElemSuppAlg.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestElementDescription.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestFieldUtils.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestGetDofStatus.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestHex27FaceNodeOrdering.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestHexElementPromotion.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestHexMasterElements.C
@@ -21,7 +20,6 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestKokkosViews.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLagrangeInterpolants.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLidarLOS.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLocalGraphArrays.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestMasterElements.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestMetricTensor.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestMijTensor.C
@@ -42,11 +40,17 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestSingleHexPromotion.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestSpinnerLidarPattern.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestSuppAlgDataSharing.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestTpetra.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestUtils.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestVSpace.C
 )
 
+if(ENABLE_TPETRA)
+target_sources(${utest_ex_name} PRIVATE
+   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestGetDofStatus.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLocalGraphArrays.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestTpetra.C
+)
+endif()
 
 add_subdirectory(actuator)
 add_subdirectory(aero)

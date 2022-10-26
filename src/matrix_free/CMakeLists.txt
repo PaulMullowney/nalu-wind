@@ -1,4 +1,5 @@
-target_sources(nalu PRIVATE
+if(ENABLE_TPETRA)
+	target_sources(nalu PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/Coefficients.C
    ${CMAKE_CURRENT_SOURCE_DIR}/ConductionDiagonal.C
    ${CMAKE_CURRENT_SOURCE_DIR}/ConductionFields.C
@@ -49,3 +50,4 @@ target_sources(nalu PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/SparsifiedEdgeLaplacian.C
    ${CMAKE_CURRENT_SOURCE_DIR}/TransportCoefficients.C
 )
+endif()

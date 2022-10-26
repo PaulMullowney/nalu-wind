@@ -63,25 +63,41 @@ LinearSolvers::load(const YAML::Node& node)
       std::string solver_type = "tpetra";
       get_if_present_no_default(linear_solver_node, "type", solver_type);
       // proceed with the single supported solver strategy
+#if defined(NALU_USES_TPETRA) && defined(NALU_USES_HYPRE)
       if (solver_type == "tpetra") {
         TpetraLinearSolverConfig* linearSolverConfig =
           new TpetraLinearSolverConfig();
         linearSolverConfig->load(linear_solver_node);
         solverTpetraConfig_[linearSolverConfig->name()] = linearSolverConfig;
       } else if (solver_type == "hypre") {
-#ifdef NALU_USES_HYPRE
         HypreLinearSolverConfig* linSolverCfg = new HypreLinearSolverConfig();
         linSolverCfg->load(linear_solver_node);
         solverHypreConfig_[linSolverCfg->name()] = linSolverCfg;
-#else
-        throw std::runtime_error(
-          "HYPRE support must be enabled during compile time.");
-#endif
       } else if (solver_type == "epetra") {
         throw std::runtime_error("epetra solver_type has been deprecated");
       } else {
         throw std::runtime_error("unknown solver type");
       }
+#elif defined(NALU_USES_TPETRA)
+      if (solver_type == "tpetra") {
+        TpetraLinearSolverConfig* linearSolverConfig =
+          new TpetraLinearSolverConfig();
+        linearSolverConfig->load(linear_solver_node);
+        solverTpetraConfig_[linearSolverConfig->name()] = linearSolverConfig;
+      } else if (solver_type == "epetra") {
+        throw std::runtime_error("epetra solver_type has been deprecated");
+      } else {
+        throw std::runtime_error("unknown solver type");
+      }
+#elif defined(NALU_USES_HYPRE)
+		if (solver_type == "hypre") {
+        HypreLinearSolverConfig* linSolverCfg = new HypreLinearSolverConfig();
+        linSolverCfg->load(linear_solver_node);
+        solverHypreConfig_[linSolverCfg->name()] = linSolverCfg;
+      } else {
+        throw std::runtime_error("unknown solver type");
+      }
+#endif
     }
   }
 }
@@ -110,6 +126,7 @@ LinearSolvers::create_solver(
 
   // check in tpetra map...
   bool foundT = false;
+#if defined(NALU_USES_TPETRA) && defined(NALU_USES_HYPRE)
   SolverTpetraConfigMap::const_iterator iterT =
     solverTpetraConfig_.find(solverBlockName);
   if (iterT != solverTpetraConfig_.end()) {
@@ -119,7 +136,6 @@ LinearSolvers::create_solver(
       solverName, linearSolverConfig, linearSolverConfig->params(),
       linearSolverConfig->paramsPrecond(), this);
   }
-#ifdef NALU_USES_HYPRE
   else {
     auto hIter = solverHypreConfig_.find(solverBlockName);
     if (hIter != solverHypreConfig_.end()) {
@@ -130,6 +146,26 @@ LinearSolvers::create_solver(
       else
         theSolver = new HypreDirectSolver(solverName, cfg, this);
     }
+  }
+#elif defined(NALU_USES_TPETRA)
+  SolverTpetraConfigMap::const_iterator iterT =
+    solverTpetraConfig_.find(solverBlockName);
+  if (iterT != solverTpetraConfig_.end()) {
+    TpetraLinearSolverConfig* linearSolverConfig = (*iterT).second;
+    foundT = true;
+    theSolver = new TpetraLinearSolver(
+      solverName, linearSolverConfig, linearSolverConfig->params(),
+      linearSolverConfig->paramsPrecond(), this);
+  }
+#elif defined(NALU_USES_HYPRE)
+  auto hIter = solverHypreConfig_.find(solverBlockName);
+  if (hIter != solverHypreConfig_.end()) {
+	  HypreLinearSolverConfig* cfg = hIter->second;
+	  foundT = true;
+	  if ((theEQ == EQ_MOMENTUM) && cfg->useSegregatedSolver())
+        theSolver = new HypreUVWSolver(solverName, cfg, this);
+	  else
+        theSolver = new HypreDirectSolver(solverName, cfg, this);
   }
 #endif
 

@@ -22,8 +22,10 @@
 // all concrete EquationSystem's
 #include <EnthalpyEquationSystem.h>
 #include <LowMachEquationSystem.h>
+#ifdef NALU_USES_TPETRA
 #include <MatrixFreeHeatCondEquationSystem.h>
 #include <MatrixFreeLowMachEquationSystem.h>
+#endif
 #include <ShearStressTransportEquationSystem.h>
 #include <ChienKEpsilonEquationSystem.h>
 #include <WilcoxKOmegaEquationSystem.h>
@@ -117,11 +119,15 @@ EquationSystems::load(const YAML::Node& y_node)
           get_if_present_no_default(
             y_eqsys, "element_continuity_eqs", elemCont);
 
+#ifdef NALU_USES_TPETRA
           if (realm_.matrix_free()) {
             eqSys = new MatrixFreeLowMachEquationSystem(*this);
           } else {
             eqSys = new LowMachEquationSystem(*this, elemCont);
           }
+#else
+			 eqSys = new LowMachEquationSystem(*this, elemCont);
+#endif
         } else if (expect_map(y_system, "ShearStressTransport", true)) {
           y_eqsys = expect_map(y_system, "ShearStressTransport", true);
           if (root()->debug())
@@ -159,12 +165,17 @@ EquationSystems::load(const YAML::Node& y_node)
           if (root()->debug())
             NaluEnv::self().naluOutputP0()
               << "eqSys = HeatConduction " << std::endl;
+#ifdef NALU_USES_TPETRA
           if (realm_.matrix_free()) {
             eqSys = new MatrixFreeHeatCondEquationSystem(*this);
           } else {
             throw std::runtime_error(
               "HeatConduction only supported for matrix-free");
           }
+#else
+			 throw std::runtime_error(
+				 "HeatConduction only supported for matrix-free. Must be compiled with TPetra Support.");
+#endif
         } else if (expect_map(y_system, "WallDistance", true)) {
           y_eqsys = expect_map(y_system, "WallDistance", true);
           eqSys = new WallDistEquationSystem(*this);

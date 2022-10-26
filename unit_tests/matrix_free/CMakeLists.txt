@@ -1,3 +1,4 @@
+if(ENABLE_TPETRA)
 target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/StkConductionFixture.C
    ${CMAKE_CURRENT_SOURCE_DIR}/StkGradientFixture.C
@@ -46,3 +47,4 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestStkSimdGatheredElementData.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestTransportCoefficients.C
 )
+endif()

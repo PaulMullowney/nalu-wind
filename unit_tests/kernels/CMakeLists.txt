@@ -8,3 +8,8 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestScalarOpenElem.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestWallDistElem.C
 )
+
+if(ENABLE_TPETRA)
+target_sources(${utest_ex_name} PRIVATE
+)
+endif()

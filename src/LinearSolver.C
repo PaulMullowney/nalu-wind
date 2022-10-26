@@ -31,6 +31,7 @@
 #include <Teuchos_ArrayRCP.hpp>
 #include <Teuchos_DefaultMpiComm.hpp>
 #include <Teuchos_OrdinalTraits.hpp>
+#ifdef NALU_USES_TPETRA
 #include <Tpetra_CrsGraph.hpp>
 #include <Tpetra_Export.hpp>
 #include <Tpetra_Operator.hpp>
@@ -40,7 +41,7 @@
 
 #include <Teuchos_ParameterXMLFileReader.hpp>
 #include <MueLu_CreateTpetraPreconditioner.hpp>
-
+#endif
 #include <iostream>
 
 namespace sierra {
@@ -57,6 +58,7 @@ LinearSolver::parent()
   return linearSolvers_;
 }
 
+#ifdef NALU_USES_TPETRA
 TpetraLinearSolver::TpetraLinearSolver(
   std::string solverName,
   TpetraLinearSolverConfig* config,
@@ -257,6 +259,7 @@ TpetraLinearSolver::solve(
 
   return status;
 }
+#endif
 
 } // namespace nalu
 } // namespace sierra

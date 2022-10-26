@@ -57,8 +57,6 @@ target_sources(nalu PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/LowMachEquationSystem.C
    ${CMAKE_CURRENT_SOURCE_DIR}/MaterialProperty.C
    ${CMAKE_CURRENT_SOURCE_DIR}/MaterialPropertys.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/MatrixFreeHeatCondEquationSystem.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/MatrixFreeLowMachEquationSystem.C
    ${CMAKE_CURRENT_SOURCE_DIR}/MomentumBoussinesqRASrcNodeSuppAlg.C
    ${CMAKE_CURRENT_SOURCE_DIR}/MomentumBuoyancySrcNodeSuppAlg.C
    ${CMAKE_CURRENT_SOURCE_DIR}/MovingAveragePostProcessor.C
@@ -88,9 +86,6 @@ target_sources(nalu PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/SurfaceForceAndMomentWallFunctionAlgorithm.C
    ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegrator.C
    ${CMAKE_CURRENT_SOURCE_DIR}/TotalDissipationRateEquationSystem.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/TpetraLinearSystem.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/TpetraLinearSystemHelpers.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/TpetraSegregatedLinearSystem.C
    ${CMAKE_CURRENT_SOURCE_DIR}/TurbKineticEnergyEquationSystem.C
    ${CMAKE_CURRENT_SOURCE_DIR}/TurbViscSmagorinskyAlgorithm.C
    ${CMAKE_CURRENT_SOURCE_DIR}/TurbViscWaleAlgorithm.C
@@ -102,6 +97,17 @@ target_sources(nalu PRIVATE
 if(ENABLE_FFTW)
    target_sources(nalu PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/AssembleMomentumEdgeABLTopBC.C
+   )
+endif()
+
+if(ENABLE_TPETRA)
+   target_sources(nalu PRIVATE
+   ${CMAKE_CURRENT_SOURCE_DIR}/TpetraLinearSystem.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/TpetraLinearSystemHelpers.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/TpetraLinearSolverConfig.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/TpetraSegregatedLinearSystem.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/MatrixFreeLowMachEquationSystem.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/MatrixFreeHeatCondEquationSystem.C
    )
 endif()
 

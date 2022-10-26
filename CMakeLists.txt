@@ -14,6 +14,7 @@ option(ENABLE_SPHINX_API_DOCS "Link Doxygen API docs to Sphinx" OFF)
 option(ENABLE_WIND_UTILS "Build wind utils along with Nalu-Wind" OFF)
 option(ENABLE_FFTW "Use the FFTW library to support ABLTopBC" OFF)
 option(ENABLE_HYPRE "Use HYPRE Solver library" OFF)
+option(ENABLE_TPETRA "Use Teptra Solver library" OFF)
 option(ENABLE_OPENFAST
        "Use OPENFAST tpl to get actuator line positions and forces" OFF)
 option(ENABLE_PARAVIEW_CATALYST
@@ -83,6 +84,9 @@ target_include_directories(nalu SYSTEM PUBLIC ${Trilinos_INCLUDE_DIRS})
 target_include_directories(nalu SYSTEM PUBLIC ${Trilinos_TPL_INCLUDE_DIRS})
 if(Trilinos_BUILD_SHARED_LIBS)
   set(BUILD_SHARED_LIBS ON)
+if(ENABLE_TPETRA)
+target_compile_definitions(nalu PUBLIC NALU_USES_TPETRA)
+endif()
 endif()
 
 ############################ BOOST #####################################
