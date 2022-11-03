@@ -32,6 +32,7 @@ namespace nalu {
 //--------------------------------------------------------------------------
 //-------- constructor------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 QuadrilateralP2Element::QuadrilateralP2Element() : MasterElement()
 {
   MasterElement::nDim_ = nDim_;
@@ -390,10 +391,11 @@ quad_gradient_operator(
 //--------------------------------------------------------------------------
 //-------- constructor -----------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 Quad92DSCV::Quad92DSCV() : QuadrilateralP2Element()
 {
   MasterElement::numIntPoints_ = numIntPoints_;
-#ifndef KOKKOS_ENABLE_CUDA
+#if !defined(KOKKOS_ENABLE_GPU)
   // set up integration rule and relevant maps for scvs
   set_interior_info();
 
@@ -446,6 +448,7 @@ Quad92DSCV::set_interior_info()
 //--------------------------------------------------------------------------
 //-------- ipNodeMap -------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 const int*
 Quad92DSCV::ipNodeMap(int /*ordinal*/) const
 {
@@ -500,7 +503,7 @@ Quad92DSCV::shifted_shape_fcn(double* shpfc)
 //-------- determinant -----------------------------------------------------
 //--------------------------------------------------------------------------
 template <typename DBLTYPE, typename SHMEM>
-DBLTYPE
+KOKKOS_FUNCTION DBLTYPE
 Quad92DSCV::jacobian_determinant(
   const SharedMemView<DBLTYPE**, SHMEM>& elemNodalCoords,
   const double* POINTER_RESTRICT shapeDerivs) const
@@ -563,6 +566,7 @@ Quad92DSCV::determinant(
   determinant_scv(coords, volume);
 }
 
+KOKKOS_FUNCTION
 void
 Quad92DSCV::grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -580,6 +584,7 @@ Quad92DSCV::grad_op(
     coords, gradop, deriv);
 }
 
+KOKKOS_FUNCTION
 void
 Quad92DSCV::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -601,7 +606,7 @@ Quad92DSCV::shifted_grad_op(
 //-------- jacobian_determinant --------------------------------------------
 //--------------------------------------------------------------------------
 template <typename DBLTYPE>
-DBLTYPE
+KOKKOS_FUNCTION DBLTYPE
 Quad92DSCV::jacobian_determinant(
   const DBLTYPE* POINTER_RESTRICT elemNodalCoords,
   const DBLTYPE* POINTER_RESTRICT shapeDerivs) const
@@ -648,6 +653,7 @@ Quad92DSCV::Mij(const double* coords, double* metric, double* deriv)
   generic_Mij_2d<AlgTraitsQuad9_2D>(numIntPoints_, deriv, coords, metric);
 }
 //-------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Quad92DSCV::Mij(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -660,10 +666,11 @@ Quad92DSCV::Mij(
 //--------------------------------------------------------------------------
 //-------- constructor -----------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 Quad92DSCS::Quad92DSCS() : QuadrilateralP2Element()
 {
   MasterElement::numIntPoints_ = numIntPoints_;
-#ifndef KOKKOS_ENABLE_CUDA
+#if !defined(KOKKOS_ENABLE_GPU)
   // set up integration rule and relevant maps for scs
   set_interior_info();
 
@@ -889,6 +896,7 @@ Quad92DSCS::set_boundary_info()
 //--------------------------------------------------------------------------
 //-------- ipNodeMap -------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 const int*
 Quad92DSCS::ipNodeMap(int ordinal) const
 {
@@ -942,6 +950,7 @@ Quad92DSCS::shifted_shape_fcn(double* shpfc)
 //--------------------------------------------------------------------------
 //-------- side_node_ordinals ----------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 const int*
 Quad92DSCS::side_node_ordinals(int ordinal) const
 {
@@ -1007,6 +1016,7 @@ Quad92DSCS::determinant(
 {
   determinant_scs(coords, areav);
 }
+KOKKOS_FUNCTION
 void
 Quad92DSCS::grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -1053,6 +1063,7 @@ Quad92DSCS::grad_op(
 //--------------------------------------------------------------------------
 //-------- shifted_grad_op -------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Quad92DSCS::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -1099,6 +1110,7 @@ Quad92DSCS::shifted_grad_op(
 //--------------------------------------------------------------------------
 //-------- face_grad_op ----------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Quad92DSCS::face_grad_op(
   int face_ordinal,
@@ -1152,6 +1164,7 @@ Quad92DSCS::face_grad_op(
 //--------------------------------------------------------------------------
 //-------- gij -------------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Quad92DSCS::gij(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -1230,6 +1243,7 @@ Quad92DSCS::Mij(const double* coords, double* metric, double* deriv)
   generic_Mij_2d<AlgTraitsQuad9_2D>(numIntPoints_, deriv, coords, metric);
 }
 //-------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Quad92DSCS::Mij(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -1242,6 +1256,7 @@ Quad92DSCS::Mij(
 //--------------------------------------------------------------------------
 //-------- adjacentNodes ---------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 const int*
 Quad92DSCS::adjacentNodes()
 {
@@ -1252,6 +1267,7 @@ Quad92DSCS::adjacentNodes()
 //--------------------------------------------------------------------------
 //-------- opposingNodes ---------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 int
 Quad92DSCS::opposingNodes(const int ordinal, const int node)
 {
@@ -1261,6 +1277,7 @@ Quad92DSCS::opposingNodes(const int ordinal, const int node)
 //--------------------------------------------------------------------------
 //-------- opposingFace ----------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 int
 Quad92DSCS::opposingFace(const int ordinal, const int node)
 {
@@ -1271,7 +1288,7 @@ Quad92DSCS::opposingFace(const int ordinal, const int node)
 //-------- area_vector -----------------------------------------------------
 //--------------------------------------------------------------------------
 template <Jacobian::Direction direction, typename DBLTYPE, typename SHMEM>
-void
+KOKKOS_FUNCTION void
 Quad92DSCS::area_vector(
   const SharedMemView<DBLTYPE**, SHMEM>& elemNodalCoords,
   const double* POINTER_RESTRICT shapeDeriv,
@@ -1296,7 +1313,7 @@ Quad92DSCS::area_vector(
   normalVec[1] = -dxdr;
 }
 template <Jacobian::Direction direction>
-void
+KOKKOS_FUNCTION void
 Quad92DSCS::area_vector(
   const double* POINTER_RESTRICT elemNodalCoords,
   const double* POINTER_RESTRICT shapeDeriv,

@@ -23,9 +23,286 @@
 namespace sierra {
 namespace nalu {
 
+template <typename DBLTYPE, typename SHMEM>
+KOKKOS_FUNCTION void
+hex8_derivative(
+  const SharedMemView<const double**, SHMEM>& par_coord,
+  SharedMemView<DBLTYPE***, SHMEM>& deriv)
+{
+  // formal parameters - input:
+  //     par_coord     real  parametric coordinates of the points to be
+  //                         evaluated (typically, the gauss pts)
+  //
+  // formal parameters - output:
+  //     deriv         real  shape function derivatives evaluated at
+  //                         evaluation points.
+  //
+  //**********************************************************************
+#if defined(KOKKOS_ENABLE_GPU)
+
+  if (8 != deriv.extent(1))
+    ThrowErrorMsgDevice("hex8_derivative: Error in derivative array index 1");
+  if (3 != deriv.extent(2))
+    ThrowErrorMsgDevice("hex8_derivative: Error in derivative array index 2");
+  if (3 != par_coord.extent(1))
+    ThrowErrorMsgDevice("hex8_derivative: Error in par_coord array index 1");
+  if (deriv.extent(0) != par_coord.extent(0))
+    ThrowErrorMsgDevice(
+      "hex8_derivative: Error in deriv or par_coord array index 0");
+#else
+
+  ThrowRequireMsg(
+    8 == deriv.extent(1), "hex8_derivative: Error in derivative array");
+  ThrowRequireMsg(
+    3 == deriv.extent(2), "hex8_derivative: Error in derivative array");
+  ThrowRequireMsg(
+    3 == par_coord.extent(1), "hex8_derivative: Error in derivative array");
+  ThrowRequireMsg(
+    deriv.extent(0) == par_coord.extent(0),
+    "hex8_derivative: Error in derivative array");
+
+#endif
+
+  const int npts = deriv.extent(0);
+
+  const double half = 1.0 / 2.0;
+  const double one4th = 1.0 / 4.0;
+
+  for (int j = 0; j < npts; ++j) {
+    const double s1 = par_coord(j, 0);
+    const double s2 = par_coord(j, 1);
+    const double s3 = par_coord(j, 2);
+
+    const double s1s2 = s1 * s2;
+    const double s2s3 = s2 * s3;
+    const double s1s3 = s1 * s3;
+
+    deriv(j, 0, 0) = half * (s3 + s2) - s2s3 - one4th;
+    deriv(j, 1, 0) = half * (-s3 - s2) + s2s3 + one4th;
+    deriv(j, 2, 0) = half * (-s3 + s2) - s2s3 + one4th;
+    deriv(j, 3, 0) = half * (+s3 - s2) + s2s3 - one4th;
+    deriv(j, 4, 0) = half * (-s3 + s2) + s2s3 - one4th;
+    deriv(j, 5, 0) = half * (+s3 - s2) - s2s3 + one4th;
+    deriv(j, 6, 0) = half * (+s3 + s2) + s2s3 + one4th;
+    deriv(j, 7, 0) = half * (-s3 - s2) - s2s3 - one4th;
+
+    deriv(j, 0, 1) = half * (s3 + s1) - s1s3 - one4th;
+    deriv(j, 1, 1) = half * (s3 - s1) + s1s3 - one4th;
+    deriv(j, 2, 1) = half * (-s3 + s1) - s1s3 + one4th;
+    deriv(j, 3, 1) = half * (-s3 - s1) + s1s3 + one4th;
+    deriv(j, 4, 1) = half * (-s3 + s1) + s1s3 - one4th;
+    deriv(j, 5, 1) = half * (-s3 - s1) - s1s3 - one4th;
+    deriv(j, 6, 1) = half * (s3 + s1) + s1s3 + one4th;
+    deriv(j, 7, 1) = half * (s3 - s1) - s1s3 + one4th;
+
+    deriv(j, 0, 2) = half * (s2 + s1) - s1s2 - one4th;
+    deriv(j, 1, 2) = half * (s2 - s1) + s1s2 - one4th;
+    deriv(j, 2, 2) = half * (-s2 - s1) - s1s2 - one4th;
+    deriv(j, 3, 2) = half * (-s2 + s1) + s1s2 - one4th;
+    deriv(j, 4, 2) = half * (-s2 - s1) + s1s2 + one4th;
+    deriv(j, 5, 2) = half * (-s2 + s1) - s1s2 + one4th;
+    deriv(j, 6, 2) = half * (s2 + s1) + s1s2 + one4th;
+    deriv(j, 7, 2) = half * (s2 - s1) - s1s2 + one4th;
+  }
+}
+
+int
+hex_gradient_operator(
+  const SharedMemView<const double***, HostShmem>& cordel,
+  const SharedMemView<const double***, HostShmem>& deriv,
+  SharedMemView<double****, HostShmem>& gradop,
+  SharedMemView<double**, HostShmem>& det_j,
+  SharedMemView<double*, HostShmem>& err)
+{
+
+  //**********************************************************************
+  //**********************************************************************
+  //
+  // description:
+  //    This  routine returns the gradient operator, determinate of
+  //    the Jacobian, and error count for an element workset of 3D
+  //    subcontrol surface elements The gradient operator and the
+  //    determinate of the jacobians are computed at the center of
+  //    each control surface (the locations for the integration rule
+  //    are at the center of each control surface).
+  //
+  // formal parameters - input:
+  //    deriv         real  shape function derivatives evaluated at the
+  //                        integration stations
+  //    cordel        real  element local coordinates
+  //
+  // formal parameters - output:
+  //    gradop        real  element gradient operator at each integration
+  //                        station
+  //    det_j         real  determinate of the jacobian at each integration
+  //                        station
+  //    err           real  positive volume check (0 = no error, 1 = error))
+  //**********************************************************************
+  //
+  const unsigned nint = deriv.extent(0);
+  const unsigned npe = deriv.extent(1);
+  ThrowRequireMsg(
+    3 == deriv.extent(2), "hex_gradient_operator: Error in derivative array");
+
+  const unsigned nelem = cordel.extent(0);
+  ThrowRequireMsg(
+    npe == cordel.extent(1),
+    "hex_gradient_operator: Error in coorindate array");
+  ThrowRequireMsg(
+    3 == cordel.extent(2), "hex_gradient_operator: Error in coorindate array");
+
+  ThrowRequireMsg(
+    nint == gradop.extent(0), "hex_gradient_operator: Error in gradient array");
+  ThrowRequireMsg(
+    nelem == gradop.extent(1),
+    "hex_gradient_operator: Error in gradient array");
+  ThrowRequireMsg(
+    npe == gradop.extent(2), "hex_gradient_operator: Error in gradient array");
+  ThrowRequireMsg(
+    3 == gradop.extent(3), "hex_gradient_operator: Error in gradient array");
+
+  ThrowRequireMsg(
+    nint == det_j.extent(0),
+    "hex_gradient_operator: Error in determinent array");
+  ThrowRequireMsg(
+    nelem == det_j.extent(1),
+    "hex_gradient_operator: Error in determinent array");
+
+  ThrowRequireMsg(
+    nelem == err.extent(0), "hex_gradient_operator: Error in error array");
+
+  const double realmin = std::numeric_limits<double>::min();
+
+  for (unsigned ke = 0; ke < nelem; ++ke)
+    err(ke) = 0;
+
+  for (unsigned ki = 0; ki < nint; ++ki) {
+    for (unsigned ke = 0; ke < nelem; ++ke) {
+      double dx_ds0 = 0;
+      double dx_ds1 = 0;
+      double dx_ds2 = 0;
+      double dy_ds0 = 0;
+      double dy_ds1 = 0;
+      double dy_ds2 = 0;
+      double dz_ds0 = 0;
+      double dz_ds1 = 0;
+      double dz_ds2 = 0;
+
+      // calculate the jacobian at the integration station -
+      for (unsigned kn = 0; kn < npe; ++kn) {
+
+        dx_ds0 += deriv(ki, kn, 0) * cordel(ke, kn, 0);
+        dx_ds1 += deriv(ki, kn, 1) * cordel(ke, kn, 0);
+        dx_ds2 += deriv(ki, kn, 2) * cordel(ke, kn, 0);
+
+        dy_ds0 += deriv(ki, kn, 0) * cordel(ke, kn, 1);
+        dy_ds1 += deriv(ki, kn, 1) * cordel(ke, kn, 1);
+        dy_ds2 += deriv(ki, kn, 2) * cordel(ke, kn, 1);
+
+        dz_ds0 += deriv(ki, kn, 0) * cordel(ke, kn, 2);
+        dz_ds1 += deriv(ki, kn, 1) * cordel(ke, kn, 2);
+        dz_ds2 += deriv(ki, kn, 2) * cordel(ke, kn, 2);
+      }
+
+      // calculate the determinate of the jacobian at the integration station -
+      det_j(ki, ke) = dx_ds0 * (dy_ds1 * dz_ds2 - dz_ds1 * dy_ds2) +
+                      dy_ds0 * (dz_ds1 * dx_ds2 - dx_ds1 * dz_ds2) +
+                      dz_ds0 * (dx_ds1 * dy_ds2 - dy_ds1 * dx_ds2);
+
+      // protect against a negative or small value for the determinate of the
+      // jacobian. The value of real_min (set in precision.par) represents
+      // the smallest Real value (based upon the precision set for this
+      // compilation) which the machine can represent -
+      double test = det_j(ke, ki);
+      if (test <= 1.e6 * realmin) {
+        test = 1;
+        err(ke) = 1;
+      }
+      const double denom = 1.0 / test;
+
+      // compute the gradient operators at the integration station -
+
+      const double ds0_dx = denom * (dy_ds1 * dz_ds2 - dz_ds1 * dy_ds2);
+      const double ds1_dx = denom * (dz_ds0 * dy_ds2 - dy_ds0 * dz_ds2);
+      const double ds2_dx = denom * (dy_ds0 * dz_ds1 - dz_ds0 * dy_ds1);
+
+      const double ds0_dy = denom * (dz_ds1 * dx_ds2 - dx_ds1 * dz_ds2);
+      const double ds1_dy = denom * (dx_ds0 * dz_ds2 - dz_ds0 * dx_ds2);
+      const double ds2_dy = denom * (dz_ds0 * dx_ds1 - dx_ds0 * dz_ds1);
+
+      const double ds0_dz = denom * (dx_ds1 * dy_ds2 - dy_ds1 * dx_ds2);
+      const double ds1_dz = denom * (dy_ds0 * dx_ds2 - dx_ds0 * dy_ds2);
+      const double ds2_dz = denom * (dx_ds0 * dy_ds1 - dy_ds0 * dx_ds1);
+
+      for (unsigned kn = 0; kn < npe; ++kn) {
+
+        gradop(ki, ke, kn, 0) = deriv(ki, kn, 0) * ds0_dx +
+                                deriv(ki, kn, 1) * ds1_dx +
+                                deriv(ki, kn, 2) * ds2_dx;
+
+        gradop(ki, ke, kn, 1) = deriv(ki, kn, 0) * ds0_dy +
+                                deriv(ki, kn, 1) * ds1_dy +
+                                deriv(ki, kn, 2) * ds2_dy;
+
+        gradop(ki, ke, kn, 2) = deriv(ki, kn, 0) * ds0_dz +
+                                deriv(ki, kn, 1) * ds1_dz +
+                                deriv(ki, kn, 2) * ds2_dz;
+      }
+    }
+  }
+
+  // summarize volume error checks -
+  double sum = 0;
+  for (unsigned ke = 0; ke < nelem; ++ke)
+    sum += err(ke);
+  int nerr = 0;
+  if (sum)
+    // flag error -
+    for (unsigned ke = 0; ke < nelem; ++ke)
+      if (err(ke))
+        nerr = ke;
+  return nerr;
+}
+
+template <typename SCALAR, typename SHMEM>
+KOKKOS_INLINE_FUNCTION void
+hex8_shape_fcn(
+  const int npts,
+  const double* isoParCoord,
+  SharedMemView<SCALAR**, SHMEM>& shape_fcn)
+{
+  const SCALAR half = 0.50;
+  const SCALAR one4th = 0.25;
+  const SCALAR one8th = 0.125;
+  for (int j = 0; j < npts; ++j) {
+
+    const SCALAR s1 = isoParCoord[j * 3];
+    const SCALAR s2 = isoParCoord[j * 3 + 1];
+    const SCALAR s3 = isoParCoord[j * 3 + 2];
+
+    shape_fcn(j, 0) = one8th + one4th * (-s1 - s2 - s3) +
+                      half * (s2 * s3 + s3 * s1 + s1 * s2) - s1 * s2 * s3;
+    shape_fcn(j, 1) = one8th + one4th * (s1 - s2 - s3) +
+                      half * (s2 * s3 - s3 * s1 - s1 * s2) + s1 * s2 * s3;
+    shape_fcn(j, 2) = one8th + one4th * (s1 + s2 - s3) +
+                      half * (-s2 * s3 - s3 * s1 + s1 * s2) - s1 * s2 * s3;
+    shape_fcn(j, 3) = one8th + one4th * (-s1 + s2 - s3) +
+                      half * (-s2 * s3 + s3 * s1 - s1 * s2) + s1 * s2 * s3;
+    shape_fcn(j, 4) = one8th + one4th * (-s1 - s2 + s3) +
+                      half * (-s2 * s3 - s3 * s1 + s1 * s2) + s1 * s2 * s3;
+    shape_fcn(j, 5) = one8th + one4th * (s1 - s2 + s3) +
+                      half * (-s2 * s3 + s3 * s1 - s1 * s2) - s1 * s2 * s3;
+    shape_fcn(j, 6) = one8th + one4th * (s1 + s2 + s3) +
+                      half * (s2 * s3 + s3 * s1 + s1 * s2) + s1 * s2 * s3;
+    shape_fcn(j, 7) = one8th + one4th * (-s1 + s2 + s3) +
+                      half * (s2 * s3 - s3 * s1 - s1 * s2) - s1 * s2 * s3;
+  }
+}
+
 //--------------------------------------------------------------------------
 //-------- constructor -----------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 HexSCV::HexSCV() : MasterElement()
 {
   MasterElement::nDim_ = nDim_;
@@ -36,6 +313,7 @@ HexSCV::HexSCV() : MasterElement()
 //--------------------------------------------------------------------------
 //-------- ipNodeMap -------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 const int*
 HexSCV::ipNodeMap(int /*ordinal*/) const
 {
@@ -104,6 +382,7 @@ HexSCV::determinant(
 //--------------------------------------------------------------------------
 //-------- grad_op ---------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCV::grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -144,6 +423,7 @@ HexSCV::grad_op(
 //--------------------------------------------------------------------------
 //-------- shifted_grad_op -------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCV::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -185,6 +465,7 @@ HexSCV::Mij(const double* coords, double* metric, double* deriv)
   generic_Mij_3d<AlgTraitsHex8>(numIntPoints_, deriv, coords, metric);
 }
 //-------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCV::Mij(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -198,6 +479,7 @@ HexSCV::Mij(
 //--------------------------------------------------------------------------
 //-------- constructor -----------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 HexSCS::HexSCS() : MasterElement(HexSCS::scaleToStandardIsoFac_)
 {
   MasterElement::nDim_ = nDim_;
@@ -208,6 +490,7 @@ HexSCS::HexSCS() : MasterElement(HexSCS::scaleToStandardIsoFac_)
 //--------------------------------------------------------------------------
 //-------- ipNodeMap -------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 const int*
 HexSCS::ipNodeMap(int ordinal) const
 {
@@ -236,6 +519,7 @@ HexSCS::shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 //--------------------------------------------------------------------------
 //-------- grad_op ---------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCS::grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -249,6 +533,7 @@ HexSCS::grad_op(
 //--------------------------------------------------------------------------
 //-------- shifted_grad_op -------------------------------------------------
 //--------------------------------------c------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCS::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -307,6 +592,7 @@ HexSCS::determinant(
 
 //--------------------------------------------------------------------------
 //-------- side_node_ordinals ----------------------------------------------
+KOKKOS_FUNCTION
 //--------------------------------------------------------------------------
 const int*
 HexSCS::side_node_ordinals(int ordinal) const
@@ -373,7 +659,7 @@ HexSCS::shifted_grad_op(
 //-------- face_grad_op ----------------------------------------------------
 //--------------------------------------------------------------------------
 template <bool shifted>
-void
+KOKKOS_FUNCTION void
 HexSCS::face_grad_op_t(
   const int face_ordinal,
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -388,6 +674,7 @@ HexSCS::face_grad_op_t(
   generic_grad_op<AlgTraitsHex8>(deriv, coords, gradop);
 }
 
+KOKKOS_FUNCTION
 void
 HexSCS::face_grad_op(
   int face_ordinal,
@@ -435,6 +722,7 @@ HexSCS::face_grad_op(
 //--------------------------------------------------------------------------
 //-------- shifted_face_grad_op --------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCS::shifted_face_grad_op(
   int face_ordinal,
@@ -482,6 +770,7 @@ HexSCS::shifted_face_grad_op(
 //--------------------------------------------------------------------------
 //-------- gij -------------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCS::gij(
   const double* coords, double* gupperij, double* glowerij, double* deriv)
@@ -515,6 +804,7 @@ HexSCS::Mij(const double* coords, double* metric, double* deriv)
   generic_Mij_3d<AlgTraitsHex8>(numIntPoints_, deriv, coords, metric);
 }
 //-------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCS::Mij(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -528,6 +818,7 @@ HexSCS::Mij(
 //--------------------------------------------------------------------------
 //-------- adjacentNodes ---------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 const int*
 HexSCS::adjacentNodes()
 {
@@ -538,6 +829,7 @@ HexSCS::adjacentNodes()
 //--------------------------------------------------------------------------
 //-------- scsIpEdgeOrd ----------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 const int*
 HexSCS::scsIpEdgeOrd()
 {
@@ -569,6 +861,7 @@ HexSCS::shifted_shape_fcn(double* shpfc)
 //--------------------------------------------------------------------------
 //-------- opposingNodes --------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 int
 HexSCS::opposingNodes(const int ordinal, const int node)
 {
@@ -578,6 +871,7 @@ HexSCS::opposingNodes(const int ordinal, const int node)
 //--------------------------------------------------------------------------
 //-------- opposingFace --------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 int
 HexSCS::opposingFace(const int ordinal, const int node)
 {

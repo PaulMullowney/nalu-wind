@@ -399,7 +399,7 @@ ScratchViews<T, TEAMHANDLETYPE, SHMEM>::get_scratch_view_4D(
 }
 
 template <typename T, typename TEAMHANDLETYPE, typename SHMEM>
-int
+KOKKOS_FUNCTION int
 MasterElementViews<T, TEAMHANDLETYPE, SHMEM>::create_master_element_views(
   const TEAMHANDLETYPE& team,
   const ElemDataRequestsGPU::DataEnumView& dataEnums,
@@ -816,7 +816,7 @@ MasterElementViews<T, TEAMHANDLETYPE, SHMEM>::fill_master_element_views_new_me(
 }
 
 template <typename T, typename TEAMHANDLETYPE, typename SHMEM>
-void
+KOKKOS_FUNCTION void
 MasterElementViews<T, TEAMHANDLETYPE, SHMEM>::fill_static_meviews(
   const ElemDataRequestsGPU::DataEnumView& dataEnums,
   MasterElement* meFC,
@@ -865,7 +865,7 @@ MasterElementViews<T, TEAMHANDLETYPE, SHMEM>::fill_static_meviews(
 }
 
 template <typename T, typename TEAMHANDLETYPE, typename SHMEM>
-void
+KOKKOS_FUNCTION void
 MasterElementViews<T, TEAMHANDLETYPE, SHMEM>::fill_master_element_views_new_me(
   const ElemDataRequestsGPU::DataEnumView& dataEnums,
   SharedMemView<DoubleType**, SHMEM>* coordsView,
@@ -996,6 +996,7 @@ MasterElementViews<T, TEAMHANDLETYPE, SHMEM>::fill_master_element_views_new_me(
 }
 
 template <typename T, typename TEAMHANDLETYPE, typename SHMEM>
+KOKKOS_FUNCTION
 ScratchViews<T, TEAMHANDLETYPE, SHMEM>::ScratchViews(
   const TEAMHANDLETYPE& team,
   unsigned nDim,
@@ -1032,7 +1033,7 @@ ScratchViews<T, TEAMHANDLETYPE, SHMEM>::ScratchViews(
 }
 
 template <typename T, typename TEAMHANDLETYPE, typename SHMEM>
-void
+KOKKOS_FUNCTION void
 ScratchViews<T, TEAMHANDLETYPE, SHMEM>::create_needed_master_element_views(
   const TEAMHANDLETYPE& team,
   const ElemDataRequestsGPU& dataNeeded,
@@ -1060,7 +1061,7 @@ ScratchViews<T, TEAMHANDLETYPE, SHMEM>::create_needed_master_element_views(
 }
 
 template <typename T, typename TEAMHANDLETYPE, typename SHMEM>
-void
+KOKKOS_FUNCTION void
 ScratchViews<T, TEAMHANDLETYPE, SHMEM>::fill_static_meviews(
   const ElemDataRequestsGPU& dataNeeded)
 {

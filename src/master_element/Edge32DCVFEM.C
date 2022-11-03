@@ -31,13 +31,14 @@ namespace nalu {
 //--------------------------------------------------------------------------
 //-------- constructor -----------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 Edge32DSCS::Edge32DSCS() : MasterElement()
 {
   MasterElement::nDim_ = nDim_;
   MasterElement::nodesPerElement_ = nodesPerElement_;
   MasterElement::numIntPoints_ = numIntPoints_;
 
-#ifndef KOKKOS_ENABLE_CUDA
+#if !defined(KOKKOS_ENABLE_GPU)
   const int stk1DNodeMap[3] = {0, 2, 1};
 
   int scalar_index = 0;
@@ -80,6 +81,7 @@ Edge32DSCS::tensor_product_weight(const int s1Node, const int s1Ip) const
 //--------------------------------------------------------------------------
 //-------- ipNodeMap -------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 const int*
 Edge32DSCS::ipNodeMap(int /*ordinal*/) const
 {
