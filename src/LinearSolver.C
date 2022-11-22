@@ -39,7 +39,9 @@
 #include <Tpetra_Vector.hpp>
 
 #include <Teuchos_ParameterXMLFileReader.hpp>
+#ifdef TRILINOS_HAS_MUELU
 #include <MueLu_CreateTpetraPreconditioner.hpp>
+#endif
 
 #include <iostream>
 
@@ -128,13 +130,16 @@ TpetraLinearSolver::destroyLinearSolver()
   preconditioner_ = Teuchos::null;
   solver_ = Teuchos::null;
   coords_ = Teuchos::null;
+#ifdef TRILINOS_HAS_MUELU
   if (activateMueLu_)
     mueluPreconditioner_ = Teuchos::null;
+#endif
 }
 
 void
 TpetraLinearSolver::setMueLu()
 {
+#ifdef TRILINOS_HAS_MUELU
   TpetraLinearSolverConfig* config =
     reinterpret_cast<TpetraLinearSolverConfig*>(config_);
 
@@ -166,6 +171,7 @@ TpetraLinearSolver::setMueLu()
   LinSys::SolverFactory sFactory;
   solver_ = sFactory.create(config->get_method(), params_);
   solver_->setProblem(problem_);
+#endif
 }
 
 int

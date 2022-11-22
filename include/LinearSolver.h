@@ -29,7 +29,13 @@ using GlobalOrdinal = sierra::nalu::LinSys::GlobalOrdinal;
 using LocalOrdinal = sierra::nalu::LinSys::LocalOrdinal;
 using Node = Tpetra::Map<LocalOrdinal, GlobalOrdinal>::node_type;
 using STS = Teuchos::ScalarTraits<Scalar>;
+ 
+#ifndef TRILINOS_HAS_MUELU
+#define TRILINOS_HAS_MUELU
+#endif
+#undef TRILINOS_HAS_MUELU
 
+#ifdef TRILINOS_HAS_MUELU
 // MueLu main header: include most common header files in one line
 #include <MueLu.hpp>
 
@@ -37,6 +43,7 @@ using STS = Teuchos::ScalarTraits<Scalar>;
 #include <MueLu_TpetraOperator.hpp>
 
 #include <MueLu_UseShortNames.hpp> // => typedef MueLu::FooClass<Scalar, LocalOrdinal, ...> Foo
+#endif
 #include <limits>
 
 namespace sierra {
@@ -270,7 +277,9 @@ private:
   Teuchos::RCP<LinSys::LinearProblem> problem_;
   Teuchos::RCP<LinSys::SolverManager> solver_;
   Teuchos::RCP<LinSys::Preconditioner> preconditioner_;
+#ifdef TRILINOS_HAS_MUELU
   Teuchos::RCP<MueLu::TpetraOperator<SC, LO, GO, NO>> mueluPreconditioner_;
+#endif
   Teuchos::RCP<LinSys::MultiVector> coords_;
 
   std::string preconditionerType_;

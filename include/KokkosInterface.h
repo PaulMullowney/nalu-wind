@@ -68,8 +68,13 @@ template <typename T, typename SHMEM = HostShmem>
 using SharedMemView =
   Kokkos::View<T, Kokkos::LayoutRight, SHMEM, Kokkos::MemoryUnmanaged>;
 
+#if !defined(KOKKOS_ENABLE_HIP)
 template <typename T>
 using AlignedViewType = Kokkos::View<T, Kokkos::MemoryTraits<Kokkos::Aligned>>;
+#else
+template <typename T>
+using AlignedViewType = Kokkos::View<T>;
+#endif
 
 using DeviceTeamPolicy = Kokkos::TeamPolicy<DeviceSpace>;
 using HostTeamPolicy = Kokkos::TeamPolicy<HostSpace>;

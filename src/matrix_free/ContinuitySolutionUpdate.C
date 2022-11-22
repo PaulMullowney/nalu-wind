@@ -15,7 +15,9 @@
 
 #include "stk_mesh/base/NgpProfilingBlock.hpp"
 
+#ifdef TRILINOS_HAS_MUELU
 #include "MueLu_CreateTpetraPreconditioner.hpp"
+#endif
 #include "Teuchos_RCP.hpp"
 #include "Tpetra_Operator.hpp"
 #include "Tpetra_CrsMatrix.hpp"
@@ -77,11 +79,13 @@ void
 ContinuitySolutionUpdate<p>::compute_preconditioner(
   Tpetra::CrsMatrix<>& mat, Teuchos::ParameterList& param)
 {
+#ifdef TRILINOS_HAS_MUELU
   stk::mesh::ProfilingBlock pf(
     "ContinuitySolutionUpdate<p>::compute_preconditioner");
   Teuchos::RCP<Tpetra::Operator<>> op = Teuchos::rcpFromRef(mat);
   prec_op_ = MueLu::CreateTpetraPreconditioner(op, param);
   linear_solver_.set_preconditioner(*prec_op_);
+#endif
 }
 
 template <int p>
