@@ -261,19 +261,19 @@ public:
   KOKKOS_FUNCTION void grad_op(
     SharedMemView<DoubleType**, DeviceShmem>& coords,
     SharedMemView<DoubleType***, DeviceShmem>& gradop,
-    SharedMemView<DoubleType***, DeviceShmem>& deriv);
+    SharedMemView<DoubleType***, DeviceShmem>& deriv) override;
 
   KOKKOS_FUNCTION void shifted_grad_op(
     SharedMemView<DoubleType**, DeviceShmem>& coords,
     SharedMemView<DoubleType***, DeviceShmem>& gradop,
-    SharedMemView<DoubleType***, DeviceShmem>& deriv);
+    SharedMemView<DoubleType***, DeviceShmem>& deriv) override;
 
   KOKKOS_FUNCTION void Mij(
     SharedMemView<DoubleType**, DeviceShmem>& coords,
     SharedMemView<DoubleType***, DeviceShmem>& metric,
-    SharedMemView<DoubleType***, DeviceShmem>& deriv);
+    SharedMemView<DoubleType***, DeviceShmem>& deriv) override;
 
-  void Mij(const double* coords, double* metric, double* deriv);
+  void Mij(const double* coords, double* metric, double* deriv) override;
 
   const InterpWeightType& shape_function_values() { return interpWeights_; }
 
@@ -339,9 +339,9 @@ public:
   template <typename ViewType>
   KOKKOS_FUNCTION void shape_fcn(ViewType& shpfc);
   KOKKOS_FUNCTION void
-  shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc);
+  shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc) override;
   KOKKOS_FUNCTION void
-  shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc);
+  shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc) override;
 
   template <typename ViewTypeCoord, typename ViewTypeGrad>
   KOKKOS_FUNCTION void
@@ -350,12 +350,12 @@ public:
   KOKKOS_FUNCTION void grad_op(
     SharedMemView<DoubleType**, DeviceShmem>& coords,
     SharedMemView<DoubleType***, DeviceShmem>& gradop,
-    SharedMemView<DoubleType***, DeviceShmem>& deriv);
+    SharedMemView<DoubleType***, DeviceShmem>& deriv) override;
 
   KOKKOS_FUNCTION void shifted_grad_op(
     SharedMemView<DoubleType**, DeviceShmem>& coords,
     SharedMemView<DoubleType***, DeviceShmem>& gradop,
-    SharedMemView<DoubleType***, DeviceShmem>& deriv);
+    SharedMemView<DoubleType***, DeviceShmem>& deriv) override;
 
   KOKKOS_FUNCTION virtual void determinant(
     const SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -369,7 +369,7 @@ public:
     SharedMemView<DoubleType**, DeviceShmem>& coords,
     SharedMemView<DoubleType***, DeviceShmem>& gupper,
     SharedMemView<DoubleType***, DeviceShmem>& glower,
-    SharedMemView<DoubleType***, DeviceShmem>& deriv);
+    SharedMemView<DoubleType***, DeviceShmem>& deriv) override;
 
   KOKKOS_FUNCTION void face_grad_op(
     int face_ordinal,
@@ -380,9 +380,9 @@ public:
   KOKKOS_FUNCTION void Mij(
     SharedMemView<DoubleType**, DeviceShmem>& coords,
     SharedMemView<DoubleType***, DeviceShmem>& metric,
-    SharedMemView<DoubleType***, DeviceShmem>& deriv);
+    SharedMemView<DoubleType***, DeviceShmem>& deriv) override;
 
-  void Mij(const double* coords, double* metric, double* deriv);
+  void Mij(const double* coords, double* metric, double* deriv) override;
 
   void grad_op(
     const int nelem,
@@ -390,7 +390,7 @@ public:
     double* gradop,
     double* deriv,
     double* det_j,
-    double* error);
+    double* error) override;
 
   void shifted_grad_op(
     const int nelem,
@@ -398,7 +398,7 @@ public:
     double* gradop,
     double* deriv,
     double* det_j,
-    double* error);
+    double* error) override;
 
   void face_grad_op(
     const int nelem,
@@ -406,10 +406,10 @@ public:
     const double* coords,
     double* gradop,
     double* det_j,
-    double* error);
+    double* error) override;
 
   void
-  gij(const double* coords, double* gupperij, double* glowerij, double* deriv);
+  gij(const double* coords, double* gupperij, double* glowerij, double* deriv) override;
 
   void general_face_grad_op(
     const int face_ordinal,
@@ -417,21 +417,21 @@ public:
     const double* coords,
     double* gradop,
     double* det_j,
-    double* error);
+    double* error) override;
 
   void sidePcoords_to_elemPcoords(
     const int& side_ordinal,
     const int& npoints,
     const double* side_pcoords,
-    double* elem_pcoords);
+    double* elem_pcoords) override;
 
   KOKKOS_FUNCTION virtual const int* adjacentNodes() final;
 
   KOKKOS_FUNCTION virtual const int* ipNodeMap(int ordinal = 0) const final;
 
-  KOKKOS_FUNCTION int opposingNodes(const int ordinal, const int node);
+  KOKKOS_FUNCTION int opposingNodes(const int ordinal, const int node) override;
 
-  KOKKOS_FUNCTION int opposingFace(const int ordinal, const int node);
+  KOKKOS_FUNCTION int opposingFace(const int ordinal, const int node) override;
 
   KOKKOS_FUNCTION const int* side_node_ordinals(int sideOrdinal) const final;
   using MasterElement::side_node_ordinals;

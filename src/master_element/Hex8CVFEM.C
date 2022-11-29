@@ -321,12 +321,14 @@ HexSCV::ipNodeMap(int /*ordinal*/) const
   return ipNodeMap_;
 }
 
+KOKKOS_FUNCTION
 void
 HexSCV::shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
   hex8_shape_fcn(numIntPoints_, &intgLoc_[0], shpfc);
 }
 
+KOKKOS_FUNCTION
 void
 HexSCV::shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
@@ -501,6 +503,7 @@ HexSCS::ipNodeMap(int ordinal) const
 //--------------------------------------------------------------------------
 //-------- shape_fcn -------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCS::shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
@@ -510,6 +513,7 @@ HexSCS::shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 //--------------------------------------------------------------------------
 //-------- shifted_shape_fcn -----------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCS::shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
@@ -770,7 +774,6 @@ HexSCS::shifted_face_grad_op(
 //--------------------------------------------------------------------------
 //-------- gij -------------------------------------------------------------
 //--------------------------------------------------------------------------
-KOKKOS_FUNCTION
 void
 HexSCS::gij(
   const double* coords, double* gupperij, double* glowerij, double* deriv)
@@ -784,6 +787,7 @@ HexSCS::gij(
 //--------------------------------------------------------------------------
 //-------- gij -------------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 HexSCS::gij(
   SharedMemView<DoubleType**, DeviceShmem>& coords,

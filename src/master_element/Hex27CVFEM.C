@@ -656,6 +656,7 @@ Hex27SCV::ipNodeMap(int /*ordinal*/) const
 }
 
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Hex27SCV::shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
@@ -666,6 +667,7 @@ Hex27SCV::shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
   }
 }
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Hex27SCV::shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
@@ -1279,6 +1281,7 @@ Hex27SCS::opposingFace(const int ordinal, const int node)
 }
 
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Hex27SCS::shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
@@ -1289,6 +1292,7 @@ Hex27SCS::shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
   }
 }
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Hex27SCS::shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
@@ -1383,7 +1387,6 @@ Hex27SCS::area_vector(
 //--------------------------------------------------------------------------
 //-------- grad_op ---------------------------------------------------------
 //--------------------------------------------------------------------------
-KOKKOS_FUNCTION
 void
 Hex27SCS::grad_op(
   const int nelem,
@@ -1416,6 +1419,7 @@ Hex27SCS::grad_op(
   }
 }
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Hex27SCS::grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -1437,7 +1441,6 @@ Hex27SCS::grad_op(
 //--------------------------------------------------------------------------
 //-------- shifted_grad_op -------------------------------------------------
 //--------------------------------------------------------------------------
-KOKKOS_FUNCTION
 void
 Hex27SCS::shifted_grad_op(
   const int nelem,
@@ -1471,6 +1474,7 @@ Hex27SCS::shifted_grad_op(
   }
 }
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Hex27SCS::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
@@ -1491,7 +1495,6 @@ Hex27SCS::shifted_grad_op(
 //--------------------------------------------------------------------------
 //-------- face_grad_op ----------------------------------------------------
 //--------------------------------------------------------------------------
-KOKKOS_FUNCTION
 void
 Hex27SCS::face_grad_op(
   const int nelem,
@@ -1518,6 +1521,7 @@ Hex27SCS::face_grad_op(
   }
 }
 
+KOKKOS_FUNCTION
 void
 Hex27SCS::face_grad_op(
   int face_ordinal,
@@ -1621,7 +1625,6 @@ Hex27SCS::gradient(
 //--------------------------------------------------------------------------
 //-------- gij -------------------------------------------------------------
 //--------------------------------------------------------------------------
-KOKKOS_FUNCTION
 void
 Hex27SCS::gij(
   const double* coords, double* gupperij, double* glowerij, double* deriv)
@@ -1632,6 +1635,7 @@ Hex27SCS::gij(
   (&nodesPerElement, &numIntPoints, deriv, coords, gupperij, glowerij);
 }
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Hex27SCS::gij(
   SharedMemView<DoubleType**, DeviceShmem>& coords,

@@ -60,8 +60,8 @@ enum ELEM_DATA_NEEDED {
 
 enum COORDS_TYPES {
   CURRENT_COORDINATES = 0,
-  MODEL_COORDINATES,
-  MAX_COORDS_TYPES,
+  MODEL_COORDINATES = 1,
+  MAX_COORDS_TYPES = 2,
 };
 
 static const std::string CoordinatesTypeNames[] = {

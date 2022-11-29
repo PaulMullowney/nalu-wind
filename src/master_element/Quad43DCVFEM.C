@@ -66,6 +66,7 @@ Quad3DSCS::shifted_shape_fcn(double* shpfc)
 //--------------------------------------------------------------------------
 //-------- shape_fcn -------------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Quad3DSCS::shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
@@ -75,6 +76,7 @@ Quad3DSCS::shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 //--------------------------------------------------------------------------
 //-------- shifted_shape_fcn -----------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Quad3DSCS::shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
@@ -142,6 +144,7 @@ Quad3DSCS::determinant(
 //--------------------------------------------------------------------------
 //-------- quad4_shape_fcn --------------------------------------------------
 //--------------------------------------------------------------------------
+KOKKOS_FUNCTION
 void
 Quad3DSCS::quad4_shape_fcn(
   const double* isoParCoord,

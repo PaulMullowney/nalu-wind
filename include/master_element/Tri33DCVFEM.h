@@ -51,17 +51,17 @@ public:
     SharedMemView<double**>& areav) override;
 
   KOKKOS_FUNCTION virtual void
-  shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc);
+  shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc) override;
 
-  void shape_fcn(double* shpfc);
+  void shape_fcn(double* shpfc) override;
 
   KOKKOS_FUNCTION virtual void
-  shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc);
+  shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc) override;
 
-  void shifted_shape_fcn(double* shpfc);
+  void shifted_shape_fcn(double* shpfc) override;
 
   KOKKOS_FUNCTION void tri_shape_fcn(
-    const double* par_coord, SharedMemView<DoubleType**, DeviceShmem>& shpfc);
+	  const double* par_coord, SharedMemView<DoubleType**, DeviceShmem>& shpfc);
 
   void
   tri_shape_fcn(const int npts, const double* par_coord, double* shape_fcn);
@@ -69,7 +69,7 @@ public:
   double isInElement(
     const double* elemNodalCoord,
     const double* pointCoord,
-    double* isoParCoord);
+    double* isoParCoord) override;
 
   double parametric_distance(const std::array<double, 3>& x);
 
@@ -77,13 +77,13 @@ public:
     const int& nComp,
     const double* isoParCoord,
     const double* field,
-    double* result);
+    double* result) override;
 
   void
-  general_shape_fcn(const int numIp, const double* isoParCoord, double* shpfc);
+  general_shape_fcn(const int numIp, const double* isoParCoord, double* shpfc) override;
 
   void general_normal(
-    const double* isoParCoord, const double* coords, double* normal);
+    const double* isoParCoord, const double* coords, double* normal) override;
 
   virtual const double* integration_locations() const final { return intgLoc_; }
   virtual const double* integration_location_shift() const final

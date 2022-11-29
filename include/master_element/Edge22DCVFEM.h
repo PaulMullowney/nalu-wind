@@ -50,31 +50,31 @@ public:
     SharedMemView<double**>& area) override;
 
   KOKKOS_FUNCTION virtual void
-  shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc);
+  shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc) override;
 
   KOKKOS_FUNCTION virtual void
-  shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc);
+  shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc) override;
 
-  void shape_fcn(double* shpfc);
+  void shape_fcn(double* shpfc) override;
 
-  void shifted_shape_fcn(double* shpfc);
+  void shifted_shape_fcn(double* shpfc) override;
 
   double isInElement(
     const double* elemNodalCoord,
     const double* pointCoord,
-    double* isoParCoord);
+    double* isoParCoord) override;
 
   void interpolatePoint(
     const int& nComp,
     const double* isoParCoord,
     const double* field,
-    double* result);
+    double* result) override;
 
   void
-  general_shape_fcn(const int numIp, const double* isoParCoord, double* shpfc);
+  general_shape_fcn(const int numIp, const double* isoParCoord, double* shpfc) override;
 
   void general_normal(
-    const double* isoParCoord, const double* coords, double* normal);
+    const double* isoParCoord, const double* coords, double* normal) override;
 
   virtual const double* integration_locations() const final { return intgLoc_; }
   virtual const double* integration_location_shift() const final

@@ -23,6 +23,8 @@ do_the_test_gpu(
   sierra::nalu::nalu_ngp::FieldManager fieldMgr(bulk);
   sierra::nalu::ElemDataRequestsGPU ngpDataReq(
     fieldMgr, dataReq, totalNumFields_guess);
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  fflush(stdout);
 
   unsigned numCorrectTests = 0;
   int threadsPerTeam = 1;
@@ -35,6 +37,7 @@ do_the_test_gpu(
     KOKKOS_LAMBDA(
       const sierra::nalu::DeviceTeamHandleType& /* team */,
       unsigned& localNumTests) {
+#if 0
       if (ngpDataReq.get_fields().size() == 3) {
         ++localNumTests;
       }
@@ -42,7 +45,7 @@ do_the_test_gpu(
       if (ngpDataReq.get_coordinates_fields().size() == 2) {
         ++localNumTests;
       }
-
+#endif
       if (ngpDataReq.get_coordinates_types().size() == 2) {
         ++localNumTests;
       }

@@ -21,8 +21,9 @@
 namespace sierra {
 namespace nalu {
 
-struct FieldInfoNGP
+class FieldInfoNGP
 {
+public:
   FieldInfoNGP(const stk::mesh::FieldBase* fld, unsigned scalars)
     : field(stk::mesh::get_updated_ngp_field<double>(*fld)),
       scalarsDim1(scalars),
@@ -58,6 +59,9 @@ struct FieldInfoNGP
   FieldInfoNGP() : field(), scalarsDim1(0), scalarsDim2(0) {}
 
   KOKKOS_DEFAULTED_FUNCTION
+  virtual ~FieldInfoNGP() = default;
+
+  KOKKOS_DEFAULTED_FUNCTION
   FieldInfoNGP& operator=(const FieldInfoNGP&) = default;
 
   NGPDoubleFieldType field;
@@ -65,8 +69,9 @@ struct FieldInfoNGP
   unsigned scalarsDim2;
 };
 
-struct CoordFieldInfo
+class CoordFieldInfo
 {
+public:
   CoordFieldInfo(NGPDoubleFieldType& fld) : coordField(fld) {}
 
   KOKKOS_DEFAULTED_FUNCTION
@@ -76,7 +81,7 @@ struct CoordFieldInfo
   CoordFieldInfo(const CoordFieldInfo&) = default;
 
   KOKKOS_DEFAULTED_FUNCTION
-  ~CoordFieldInfo() = default;
+  virtual ~CoordFieldInfo() = default;
 
   KOKKOS_FUNCTION
   operator const NGPDoubleFieldType&() const { return coordField; }
@@ -118,6 +123,8 @@ public:
     FieldView;
   typedef Kokkos::View<FieldInfoType*, Kokkos::LayoutRight, MemSpace>
     FieldInfoView;
+  typedef Kokkos::View<FieldInfoType*, Kokkos::LayoutRight, HostSpace>
+    FieldInfoViewHost;
 
   ElemDataRequestsGPU(
     const nalu_ngp::FieldManager& fieldMgr,

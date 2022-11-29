@@ -42,17 +42,29 @@ ElemDataRequestsGPU::ElemDataRequestsGPU(
 void
 ElemDataRequestsGPU::copy_to_device()
 {
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  fflush(stdout);
+  Kokkos::deep_copy(fields, hostFields);
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  fflush(stdout);
+  Kokkos::deep_copy(coordsFields_, hostCoordsFields_);
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  fflush(stdout);
+  Kokkos::deep_copy(coordsFieldsTypes_, hostCoordsFieldsTypes_);
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  fflush(stdout);
   if (hostDataEnums[CURRENT_COORDINATES].size() > 0) {
     Kokkos::deep_copy(
       dataEnums[CURRENT_COORDINATES], hostDataEnums[CURRENT_COORDINATES]);
   }
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  fflush(stdout);
   if (hostDataEnums[MODEL_COORDINATES].size() > 0) {
     Kokkos::deep_copy(
       dataEnums[MODEL_COORDINATES], hostDataEnums[MODEL_COORDINATES]);
   }
-  Kokkos::deep_copy(coordsFields_, hostCoordsFields_);
-  Kokkos::deep_copy(coordsFieldsTypes_, hostCoordsFieldsTypes_);
-  Kokkos::deep_copy(fields, hostFields);
+  printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+  fflush(stdout);
 }
 
 void
@@ -70,6 +82,8 @@ ElemDataRequestsGPU::fill_host_data_enums(
   }
 }
 
+#if 0
+
 void
 ElemDataRequestsGPU::fill_host_fields(
   const ElemDataRequests& dataReq, const nalu_ngp::FieldManager& fieldMgr)
@@ -78,17 +92,65 @@ ElemDataRequestsGPU::fill_host_fields(
   fields = FieldInfoView(
     Kokkos::ViewAllocateWithoutInitializing("Fields"),
     dataReq.get_fields().size());
+  std::cout <<
+	  "Device size = " << fields.size() << std::endl;
+#else
+  fields = FieldInfoView("Fields", dataReq.get_fields().size());
+#endif
+  hostFields = FieldInfoViewHost(
+    Kokkos::ViewAllocateWithoutInitializing("Fields"),
+    dataReq.get_fields().size());
+
+  std::cout <<
+	  "Host size = " << hostFields.size() << std::endl;
+  unsigned i = 0;
+  for (const FieldInfo& finfo : dataReq.get_fields()) {
+	  std::cout << "i=" << i << " of " << dataReq.get_fields().size()
+					<< " sd1=" << finfo.scalarsDim1 << " sd2=" <<finfo.scalarsDim2 << std::endl;
+	  //new (&hostFields(i)) FieldInfoType(
+	  //fieldMgr.get_field<double>(finfo.field->mesh_meta_data_ordinal()),
+	  //finfo.scalarsDim1, finfo.scalarsDim2);
+	  hostFields(i) = FieldInfoType(
+	  fieldMgr.get_field<double>(finfo.field->mesh_meta_data_ordinal()),
+      finfo.scalarsDim1, finfo.scalarsDim2);
+	 ++i;
+  }
+  std::cout << "done" << std::endl;
+}
+
+#else
+
+void
+ElemDataRequestsGPU::fill_host_fields(
+  const ElemDataRequests& dataReq, const nalu_ngp::FieldManager& fieldMgr)
+{
+#if defined(KOKKOS_ENABLE_GPU)
+  fields = FieldInfoView(
+    Kokkos::ViewAllocateWithoutInitializing("Fields"),
+    dataReq.get_fields().size());
+  std::cout <<
+	  "Device size = " << fields.size() << std::endl;
 #else
   fields = FieldInfoView("Fields", dataReq.get_fields().size());
 #endif
   hostFields = Kokkos::create_mirror_view(fields);
+  std::cout <<
+	  "Host size = " << hostFields.size() << std::endl;
   unsigned i = 0;
   for (const FieldInfo& finfo : dataReq.get_fields()) {
-    hostFields(i++) = FieldInfoType(
+	  std::cout << "i=" << i << " of " << dataReq.get_fields().size()
+					<< " sd1=" << finfo.scalarsDim1 << " sd2=" <<finfo.scalarsDim2 << std::endl;
+	  new (&hostFields[i]) FieldInfoType(
       fieldMgr.get_field<double>(finfo.field->mesh_meta_data_ordinal()),
       finfo.scalarsDim1, finfo.scalarsDim2);
+	  //hostFields(i) = FieldInfoType(
+	  //fieldMgr.get_field<double>(finfo.field->mesh_meta_data_ordinal()),
+     // finfo.scalarsDim1, finfo.scalarsDim2);
+	 ++i;
   }
+  std::cout << "done" << std::endl;
 }
+#endif
 
 void
 ElemDataRequestsGPU::fill_host_coords_fields(
@@ -98,6 +160,8 @@ ElemDataRequestsGPU::fill_host_coords_fields(
   coordsFields_ = FieldView(
     Kokkos::ViewAllocateWithoutInitializing("CoordsFields"),
     dataReq.get_coordinates_map().size());
+  std::cout <<
+	  "Device size = " << coordsFields_.size() << std::endl;
 #else
   coordsFields_ =
     FieldView("CoordsFields", dataReq.get_coordinates_map().size());
@@ -107,14 +171,21 @@ ElemDataRequestsGPU::fill_host_coords_fields(
 
   hostCoordsFields_ = Kokkos::create_mirror_view(coordsFields_);
   hostCoordsFieldsTypes_ = Kokkos::create_mirror_view(coordsFieldsTypes_);
+  std::cout <<
+	  "Host size = " << hostCoordsFields_.size() << std::endl;
 
   unsigned i = 0;
   for (auto iter : dataReq.get_coordinates_map()) {
-    hostCoordsFields_(i) = CoordFieldInfo(
+	  std::cout << "i=" << i << " of " << dataReq.get_coordinates_map().size() << std::endl;
+
+	  new (&hostCoordsFields_[i]) CoordFieldInfo(
       fieldMgr.get_field<double>(iter.second->mesh_meta_data_ordinal()));
+	  //hostCoordsFields_(i) = CoordFieldInfo(
+     // fieldMgr.get_field<double>(iter.second->mesh_meta_data_ordinal()));
     hostCoordsFieldsTypes_(i) = iter.first;
     ++i;
   }
+  std::cout << "done coords" << std::endl;
 }
 
 } // namespace nalu
