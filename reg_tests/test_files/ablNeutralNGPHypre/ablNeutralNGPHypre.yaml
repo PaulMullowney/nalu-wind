@@ -1,4 +1,4 @@
-Simulations:
+\Simulations:
   - name: sim1
     time_integrator: ti_1
     optimizer: opt1
@@ -25,7 +25,8 @@ linear_solvers:
     write_matrix_files: no
     reuse_linear_system: yes
     recompute_preconditioner_frequency: 100
-    simple_hypre_matrix_assemble: no
+    fast_hypre_matrix_assemble: no
+    fast_hypre_rhs_assemble: no
     dump_hypre_matrix_stats: no
     write_preassembly_matrix_files: no
 
@@ -45,7 +46,8 @@ linear_solvers:
     write_matrix_files: no
     reuse_linear_system: yes
     recompute_preconditioner_frequency: 100
-    simple_hypre_matrix_assemble: no
+    fast_hypre_matrix_assemble: no
+    fast_hypre_rhs_assemble: no
     dump_hypre_matrix_stats: no
     write_preassembly_matrix_files: no
 
@@ -65,7 +67,8 @@ linear_solvers:
     write_matrix_files: no
     reuse_linear_system: yes
     recompute_preconditioner_frequency: 100
-    simple_hypre_matrix_assemble: no
+    fast_hypre_matrix_assemble: no
+    fast_hypre_rhs_assemble: no
     dump_hypre_matrix_stats: no
     write_preassembly_matrix_files: no
 

@@ -57,8 +57,11 @@ HypreLinearSolverConfig::load(const YAML::Node& node)
   get_if_present(
     node, "segregated_solver", useSegregatedSolver_, useSegregatedSolver_);
   get_if_present(
-    node, "simple_hypre_matrix_assemble", simpleHypreMatrixAssemble_,
-    simpleHypreMatrixAssemble_);
+    node, "fast_hypre_matrix_assemble", fastHypreMatrixAssemble_,
+    fastHypreMatrixAssemble_);
+  get_if_present(
+    node, "fast_hypre_rhs_assemble", fastHypreRhsAssemble_,
+    fastHypreRhsAssemble_);
   get_if_present(
     node, "dump_hypre_matrix_stats", dumpHypreMatrixStats_,
     dumpHypreMatrixStats_);

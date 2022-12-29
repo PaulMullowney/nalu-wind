@@ -123,8 +123,8 @@ HypreUVWLinearSystem::hypreIJVectorSetAddToValues()
     reinterpret_cast<HypreLinearSolverConfig*>(solver->getConfig());
 
   for (unsigned i = 0; i < nDim_; ++i) {
-    if (config->simpleHypreMatrixAssemble()) {
-#if 0
+    if (config->fastHypreRhsAssemble()) {
+#if 1
       /* set the key hypre parameters */
       HYPRE_IJVectorSetMaxOnProcElmts(rhs_[i], num_rows_owned);
       HYPRE_IJVectorSetOffProcSendElmts(rhs_[i], offProcRhsToSend_);

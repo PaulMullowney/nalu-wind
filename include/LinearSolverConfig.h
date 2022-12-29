@@ -131,9 +131,14 @@ public:
 
   bool useSegregatedSolver() const { return useSegregatedSolver_; }
 
-  inline bool simpleHypreMatrixAssemble() const
+  inline bool fastHypreMatrixAssemble() const
   {
-    return simpleHypreMatrixAssemble_;
+    return fastHypreMatrixAssemble_;
+  }
+
+  inline bool fastHypreRhsAssemble() const
+  {
+    return fastHypreRhsAssemble_;
   }
 
   inline bool dumpHypreMatrixStats() const { return dumpHypreMatrixStats_; }
@@ -182,7 +187,8 @@ protected:
   bool isHypreSolver_{true};
   bool hasAbsTol_{false};
   bool useSegregatedSolver_{false};
-  bool simpleHypreMatrixAssemble_{false};
+  bool fastHypreMatrixAssemble_{false};
+  bool fastHypreRhsAssemble_{false};
   bool dumpHypreMatrixStats_{false};
   bool writePreassemblyMatrixFiles_{false};
 

@@ -24,7 +24,8 @@ linear_solvers:
     output_level: 0
     segregated_solver: yes
     write_matrix_files: no
-    simple_hypre_matrix_assemble: no
+    fast_hypre_matrix_assemble: yes
+    fast_hypre_rhs_assemble: yes
     dump_hypre_matrix_stats: no
     recompute_preconditioner_frequency: 1
     reuse_linear_system: yes
@@ -44,7 +45,8 @@ linear_solvers:
     kspace: 75
     output_level: 0
     write_matrix_files: no
-    simple_hypre_matrix_assemble: no
+    fast_hypre_matrix_assemble: yes
+    fast_hypre_rhs_assemble: yes
     dump_hypre_matrix_stats: no
     recompute_preconditioner_frequency: 1
     reuse_linear_system: yes

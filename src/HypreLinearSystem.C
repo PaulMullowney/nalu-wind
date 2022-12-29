@@ -937,11 +937,15 @@ HypreLinearSystem::computeRowSizes()
   offProcNNZToSend_ = hcApplier->num_nonzeros_shared_;
   offProcRhsToSend_ = hcApplier->num_rows_shared_;
 
-  if (config->simpleHypreMatrixAssemble()) {
+  if (config->fastHypreMatrixAssemble()) {
     totalMatElmts += std::max(offProcNNZToSend_, offProcNNZToRecv_);
-    totalRhsElmts += std::max(offProcRhsToSend_, offProcRhsToRecv_);
   } else {
     totalMatElmts += hcApplier->num_nonzeros_shared_;
+  }
+
+  if (config->fastHypreRhsAssemble()) {
+    totalRhsElmts += std::max(offProcRhsToSend_, offProcRhsToRecv_);
+  } else {
     totalRhsElmts += hcApplier->num_rows_shared_;
   }
 
@@ -1503,8 +1507,8 @@ HypreLinearSystem::hypreIJMatrixSetAddToValues()
     reinterpret_cast<HypreDirectSolver*>(linearSolver_);
   HypreLinearSolverConfig* config =
     reinterpret_cast<HypreLinearSolverConfig*>(solver->getConfig());
-  if (config->simpleHypreMatrixAssemble()) {
-#if 0
+  if (config->fastHypreMatrixAssemble()) {
+#if 1
     /* set the key hypre parameters */
     HYPRE_IJMatrixSetMaxOnProcElmts(mat_, hcApplier->num_nonzeros_owned_);
     HYPRE_IJMatrixSetOffProcSendElmts(mat_, offProcNNZToSend_);
@@ -1611,8 +1615,8 @@ HypreLinearSystem::hypreIJVectorSetAddToValues()
     reinterpret_cast<HypreDirectSolver*>(linearSolver_);
   HypreLinearSolverConfig* config =
     reinterpret_cast<HypreLinearSolverConfig*>(solver->getConfig());
-  if (config->simpleHypreMatrixAssemble()) {
-#if 0
+  if (config->fastHypreRhsAssemble()) {
+#if 1
     /* set the key hypre parameters */
     HYPRE_IJVectorSetMaxOnProcElmts(rhs_, num_rows_owned);
     HYPRE_IJVectorSetOffProcSendElmts(rhs_, offProcRhsToSend_);
