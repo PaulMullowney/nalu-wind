@@ -200,12 +200,15 @@ protected:
 private:
   std::vector<std::string> vecNames_{"X", "Y", "Z"};
 
-  std::array<double, 3> firstNLR_;
+  std::vector<double> firstNLR_;
 
   mutable std::vector<HYPRE_IJVector> rhs_;
+  HYPRE_IJVector rhsMulti_;
   mutable std::vector<HYPRE_IJVector> sln_;
 
   const unsigned nDim_{3};
+  unsigned numSolves_{3};
+  unsigned numComps_{1};
 };
 
 } // namespace nalu

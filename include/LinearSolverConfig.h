@@ -131,6 +131,8 @@ public:
 
   bool useSegregatedSolver() const { return useSegregatedSolver_; }
 
+  bool doSingleSegregatedSolve() const { return doSingleSegregatedSolve_; }
+
   inline bool simpleHypreMatrixAssemble() const
   {
     return simpleHypreMatrixAssemble_;
@@ -182,6 +184,7 @@ protected:
   bool isHypreSolver_{true};
   bool hasAbsTol_{false};
   bool useSegregatedSolver_{false};
+  bool doSingleSegregatedSolve_{false};
   bool simpleHypreMatrixAssemble_{false};
   bool dumpHypreMatrixStats_{false};
   bool writePreassemblyMatrixFiles_{false};
