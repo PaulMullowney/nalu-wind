@@ -176,7 +176,6 @@ HypreUVWLinearSystem::hypreIJVectorSetAddToValues()
 			  MPI_Barrier(realm_.bulk_data().parallel());
 		  }
 
-		  hypre_printf("%s %s %d : solve=%d, comp=%d\n",__FILE__,__FUNCTION__,__LINE__,i,j);
 		  HYPRE_IJVectorSetComponent(rhs_[i], j);
 
 		  if (num_rows_owned) {
@@ -373,8 +372,6 @@ HypreUVWLinearSystem::zeroSystem()
 	  numSolves_ = nDim_;
 	  numComps_ = 1;
   }
-
-  printf("%s %s %d : numSolves=%u, numComps=%u\n",__FILE__,__FUNCTION__,__LINE__,numSolves_,numComps_);
 
   /* resize these appropriately */
   rhs_.resize(numSolves_);
