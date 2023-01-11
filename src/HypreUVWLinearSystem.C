@@ -20,7 +20,6 @@ HypreUVWLinearSystem::HypreUVWLinearSystem(
   : HypreLinearSystem(realm, 1, eqSys, linearSolver),
     rhs_(numDof, nullptr),
     sln_(numDof, nullptr),
-    rhsMulti_(nullptr),
     nDim_(numDof)
 {
 #ifdef HYPRE_LINEAR_SYSTEM_DEBUG
@@ -37,12 +36,10 @@ HypreUVWLinearSystem::~HypreUVWLinearSystem()
   if (hypreMatrixVectorsCreated_) {
     HYPRE_IJMatrixDestroy(mat_);
 
-    for (unsigned i = 0; i < nDim_; ++i)
+    for (unsigned i = 0; i < numSolves_; ++i)
       HYPRE_IJVectorDestroy(rhs_[i]);
     for (unsigned i = 0; i < numSolves_; ++i)
       HYPRE_IJVectorDestroy(sln_[i]);
-	 if (rhsMulti_)
-		 HYPRE_IJVectorDestroy(rhsMulti_);
   }
   hypreMatrixVectorsCreated_ = false;
 }
@@ -179,10 +176,13 @@ HypreUVWLinearSystem::hypreIJVectorSetAddToValues()
 			  MPI_Barrier(realm_.bulk_data().parallel());
 		  }
 
+		  hypre_printf("%s %s %d : solve=%d, comp=%d\n",__FILE__,__FUNCTION__,__LINE__,i,j);
+		  HYPRE_IJVectorSetComponent(rhs_[i], j);
+
 		  if (num_rows_owned) {
 			  /* Set the owned part */
 			  HYPRE_IJVectorSetValues(
-				  rhs_[std::max(i,j)], num_rows_owned,
+				  rhs_[i], num_rows_owned,
 				  rhs_rows_dev_.data() + std::max(i,j) * rhs_rows_dev_.extent(0),
 				  hcApplier->rhs_dev_.data() + std::max(i,j) * rhs_rows_dev_.extent(0));
 #ifdef HYPRE_LINEAR_SYSTEM_DEBUG
@@ -195,7 +195,7 @@ HypreUVWLinearSystem::hypreIJVectorSetAddToValues()
 		  if (num_rows_shared) {
 			  /* Add the shared part */
 			  HYPRE_IJVectorAddToValues(
-				  rhs_[std::max(i,j)], num_rows_shared,
+				  rhs_[i], num_rows_shared,
 				  rhs_rows_dev_.data() + std::max(i,j) * rhs_rows_dev_.extent(0) + num_rows_owned,
 				  hcApplier->rhs_dev_.data() + std::max(i,j) * rhs_rows_dev_.extent(0) +
 				  num_rows_owned);
@@ -302,40 +302,11 @@ HypreUVWLinearSystem::loadCompleteSolver()
   gettimeofday(&_start, NULL);
 #endif
 
-  if (config->doSingleSegregatedSolve())
-  {
-	  for (unsigned i = 0; i < nDim_; ++i)
-		  HYPRE_IJVectorAssemble(rhs_[i]);
-
-	  HYPRE_IJVectorAssemble(sln_[0]);
-	  HYPRE_IJVectorGetObject(sln_[0], (void**)&(solver->parSlnU_[0]));
-
-	  HypreUVWLinSysCoeffApplier* hcApplier =
-		  dynamic_cast<HypreUVWLinSysCoeffApplier*>(hostCoeffApplier.get());
-
-	  auto num_rows_owned = hcApplier->num_rows_owned_;
-	  /* Set the owned part */
-	  for (unsigned i = 0; i < nDim_; ++i)
-	  {
-		  double* rhs_data = hypre_VectorData(hypre_ParVectorLocalVector(
-															  (hypre_ParVector*)hypre_IJVectorObject(rhs_[i])));
-		  HYPRE_IJVectorSetComponent(rhsMulti_, i);
-		  HYPRE_IJVectorSetValues(
-			  rhsMulti_, num_rows_owned,
-			  rhs_rows_dev_.data() + i * rhs_rows_dev_.extent(0),
-			  rhs_data);
-	  }
-	  HYPRE_IJVectorAssemble(rhsMulti_);
-	  HYPRE_IJVectorGetObject(rhsMulti_, (void**)&(solver->parRhsU_[0]));
-  }
-  else
-  {
-	  for (unsigned i = 0; i < numSolves_; ++i) {
-		  HYPRE_IJVectorAssemble(rhs_[i]);
-		  HYPRE_IJVectorGetObject(rhs_[i], (void**)&(solver->parRhsU_[i]));
-		  HYPRE_IJVectorAssemble(sln_[i]);
-		  HYPRE_IJVectorGetObject(sln_[i], (void**)&(solver->parSlnU_[i]));
-	  }
+  for (unsigned i = 0; i < numSolves_; ++i) {
+	  HYPRE_IJVectorAssemble(rhs_[i]);
+	  HYPRE_IJVectorGetObject(rhs_[i], (void**)&(solver->parRhsU_[i]));
+	  HYPRE_IJVectorAssemble(sln_[i]);
+	  HYPRE_IJVectorGetObject(sln_[i], (void**)&(solver->parSlnU_[i]));
 
 #ifdef HYPRE_LINEAR_SYSTEM_DEBUG
     double* rhs_data = hypre_VectorData(hypre_ParVectorLocalVector(
@@ -349,21 +320,23 @@ HypreUVWLinearSystem::loadCompleteSolver()
 #endif
   }
 
-
   if (solver->getConfig()->getWriteMatrixFiles()) {
-    std::string writeCounter = std::to_string(eqSys_->linsysWriteCounter_);
-    const std::string matFile = eqSysName_ + ".IJM." + writeCounter + ".mat";
-    HYPRE_IJMatrixPrint(mat_, matFile.c_str());
+	  std::string writeCounter = std::to_string(eqSys_->linsysWriteCounter_);
+	  const std::string matFile = eqSysName_ + ".IJM." + writeCounter + ".mat";
+	  HYPRE_IJMatrixPrint(mat_, matFile.c_str());
 
-	 for (unsigned j=0; j<nDim_; ++j)
-	 {
-		 HYPRE_IJVectorSetComponent(rhs_[j], 0);
-		 const std::string rhsFile =
-			 eqSysName_ + std::to_string(j) + ".IJV." + writeCounter + ".rhs";
-		 HYPRE_IJVectorPrint(rhs_[j], rhsFile.c_str());
-	 }
+	  for (unsigned i=0; i<numSolves_; ++i)
+	  {
+		  for (unsigned j=0; j<numComps_; ++j)
+		  {
+			  HYPRE_IJVectorSetComponent(rhs_[i], j);
+			  std::string writeCounter = std::to_string(eqSys_->linsysWriteCounter_);
+			  const std::string rhsFile =
+				  eqSysName_ + std::to_string(std::max(i,j)) + ".IJV." + writeCounter + ".rhs";
+			  HYPRE_IJVectorPrint(rhs_[i], rhsFile.c_str());
+		  }
+	  }
   }
-
 
 #ifdef HYPRE_LINEAR_SYSTEM_TIMER
   gettimeofday(&_stop, NULL);
@@ -401,9 +374,10 @@ HypreUVWLinearSystem::zeroSystem()
 	  numComps_ = 1;
   }
 
-  //printf("%s %s %d : numSolves=%u, numComps=%u\n",__FILE__,__FUNCTION__,__LINE__,numSolves_,numComps_);
+  printf("%s %s %d : numSolves=%u, numComps=%u\n",__FILE__,__FUNCTION__,__LINE__,numSolves_,numComps_);
 
   /* resize these appropriately */
+  rhs_.resize(numSolves_);
   sln_.resize(numSolves_);
   solver->parRhsU_.resize(numSolves_);
   solver->parSlnU_.resize(numSolves_);
@@ -418,12 +392,10 @@ HypreUVWLinearSystem::zeroSystem()
     fclose(output_);
 #endif
     HYPRE_IJMatrixDestroy(mat_);
-    for (unsigned i = 0; i < nDim_; ++i)
+    for (unsigned i = 0; i < numSolves_; ++i)
       HYPRE_IJVectorDestroy(rhs_[i]);
     for (unsigned i = 0; i < numSolves_; ++i)
       HYPRE_IJVectorDestroy(sln_[i]);
-	 if (rhsMulti_)
-		 HYPRE_IJVectorDestroy(rhsMulti_);
     hypreMatrixVectorsCreated_ = false;
   }
 
@@ -433,17 +405,14 @@ HypreUVWLinearSystem::zeroSystem()
   HYPRE_IJMatrixGetObject(mat_, (void**)&(solver->parMat_));
   HYPRE_IJMatrixSetConstantValues(mat_, 0.0);
 
-  for (unsigned i = 0; i < nDim_; ++i) {
+  for (unsigned i = 0; i < numSolves_; ++i) {
     HYPRE_IJVectorCreate(comm, iLower_, iUpper_, &rhs_[i]);
     HYPRE_IJVectorSetObjectType(rhs_[i], HYPRE_PARCSR);
-	 HYPRE_IJVectorSetNumComponents(rhs_[i], 1);
+	 HYPRE_IJVectorSetNumComponents(rhs_[i], numComps_);
     HYPRE_IJVectorInitialize(rhs_[i]);
-	 HYPRE_ParVector parRhs;
-    HYPRE_IJVectorGetObject(rhs_[i], (void**)&(parRhs));
-    HYPRE_ParVectorSetConstantValues(parRhs, 0.0);
-  }
+    HYPRE_IJVectorGetObject(rhs_[i], (void**)&(solver->parRhsU_[i]));
+    HYPRE_ParVectorSetConstantValues((solver->parRhsU_[i]), 0.0);
 
-  for (unsigned i = 0; i < numSolves_; ++i) {
     HYPRE_IJVectorCreate(comm, iLower_, iUpper_, &sln_[i]);
     HYPRE_IJVectorSetObjectType(sln_[i], HYPRE_PARCSR);
 	 HYPRE_IJVectorSetNumComponents(sln_[i], numComps_);
@@ -452,16 +421,6 @@ HypreUVWLinearSystem::zeroSystem()
     HYPRE_ParVectorSetConstantValues((solver->parSlnU_[i]), 0.0);
   }
 
-  if (config->doSingleSegregatedSolve())
-  {
-    HYPRE_IJVectorCreate(comm, iLower_, iUpper_, &rhsMulti_);
-    HYPRE_IJVectorSetObjectType(rhsMulti_, HYPRE_PARCSR);
-	 HYPRE_IJVectorSetNumComponents(rhsMulti_, numComps_);
-    HYPRE_IJVectorInitialize(rhsMulti_);
-	 HYPRE_ParVector parRhs;
-    HYPRE_IJVectorGetObject(rhsMulti_, (void**)&(parRhs));
-    HYPRE_ParVectorSetConstantValues(parRhs, 0.0);
-  }
   hypreMatrixVectorsCreated_ = true;
 }
 
@@ -739,11 +698,8 @@ HypreUVWLinearSystem::copy_hypre_to_stk(
   HypreLinearSolverConfig* config =
 	  reinterpret_cast<HypreLinearSolverConfig*>(solver->getConfig());
 
-  if (config->doSingleSegregatedSolve())
-	  HYPRE_IJVectorInnerProd(rhsMulti_, rhsMulti_, &rhsNorm[0]);
-  else
-	  for (unsigned d = 0; d < numSolves_; ++d)
-		  HYPRE_IJVectorInnerProd(rhs_[d], rhs_[d], &rhsNorm[d]);
+  for (unsigned d = 0; d < numSolves_; ++d)
+	  HYPRE_IJVectorInnerProd(rhs_[d], rhs_[d], &rhsNorm[d]);
 
   for (unsigned i = 0; i < numSolves_; ++i)
     rhsNorm[i] = std::sqrt(rhsNorm[i]);
